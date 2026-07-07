@@ -1,0 +1,290 @@
+[
+  {
+    "threshold": 0.0,
+    "accuracy": 0.975,
+    "offload_rate": 1.0,
+    "remote_tokens": 0,
+    "per_category": {
+      "code_debugging": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "code_generation": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "factual_knowledge": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "logical_reasoning": {
+        "correct": 4,
+        "total": 5,
+        "local": 5
+      },
+      "math_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "ner": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "sentiment_classification": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "text_summarization": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      }
+    }
+  },
+  {
+    "threshold": 0.2,
+    "accuracy": 0.925,
+    "offload_rate": 1.0,
+    "remote_tokens": 0,
+    "per_category": {
+      "code_debugging": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "code_generation": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "factual_knowledge": {
+        "correct": 4,
+        "total": 5,
+        "local": 5
+      },
+      "logical_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "math_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "ner": {
+        "correct": 3,
+        "total": 5,
+        "local": 5
+      },
+      "sentiment_classification": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "text_summarization": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      }
+    }
+  },
+  {
+    "threshold": 0.4,
+    "accuracy": 0.975,
+    "offload_rate": 1.0,
+    "remote_tokens": 0,
+    "per_category": {
+      "code_debugging": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "code_generation": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "factual_knowledge": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "logical_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "math_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "ner": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "sentiment_classification": {
+        "correct": 4,
+        "total": 5,
+        "local": 5
+      },
+      "text_summarization": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      }
+    }
+  },
+  {
+    "threshold": 0.6,
+    "accuracy": 1.0,
+    "offload_rate": 0.925,
+    "remote_tokens": 202,
+    "per_category": {
+      "code_debugging": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "code_generation": {
+        "correct": 5,
+        "total": 5,
+        "local": 4
+      },
+      "factual_knowledge": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "logical_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 3
+      },
+      "math_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "ner": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "sentiment_classification": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "text_summarization": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      }
+    }
+  },
+  {
+    "threshold": 0.8,
+    "accuracy": 0.975,
+    "offload_rate": 0.75,
+    "remote_tokens": 553,
+    "per_category": {
+      "code_debugging": {
+        "correct": 5,
+        "total": 5,
+        "local": 3
+      },
+      "code_generation": {
+        "correct": 5,
+        "total": 5,
+        "local": 4
+      },
+      "factual_knowledge": {
+        "correct": 5,
+        "total": 5,
+        "local": 2
+      },
+      "logical_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 3
+      },
+      "math_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "ner": {
+        "correct": 5,
+        "total": 5,
+        "local": 3
+      },
+      "sentiment_classification": {
+        "correct": 4,
+        "total": 5,
+        "local": 5
+      },
+      "text_summarization": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      }
+    }
+  },
+  {
+    "threshold": 1.01,
+    "accuracy": 0.95,
+    "offload_rate": 0.25,
+    "remote_tokens": 1701,
+    "per_category": {
+      "code_debugging": {
+        "correct": 5,
+        "total": 5,
+        "local": 0
+      },
+      "code_generation": {
+        "correct": 5,
+        "total": 5,
+        "local": 0
+      },
+      "factual_knowledge": {
+        "correct": 4,
+        "total": 5,
+        "local": 0
+      },
+      "logical_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 0
+      },
+      "math_reasoning": {
+        "correct": 5,
+        "total": 5,
+        "local": 0
+      },
+      "ner": {
+        "correct": 5,
+        "total": 5,
+        "local": 0
+      },
+      "sentiment_classification": {
+        "correct": 5,
+        "total": 5,
+        "local": 5
+      },
+      "text_summarization": {
+        "correct": 4,
+        "total": 5,
+        "local": 5
+      }
+    }
+  }
+]
