@@ -13,6 +13,7 @@ ever failing to finish.
 import json
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from .calibrate import calibrate_local
 from .clients import ChatClient
@@ -72,10 +73,16 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
 
 
 def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list) -> list:
+    """Process tasks concurrently. The local server batches parallel requests
+    efficiently, and the scoring time budget is far too small for sequential
+    processing. Results keep input order."""
     started = time.monotonic()
-    results = []
-    for i, task in enumerate(tasks):
-        k_initial, k_max = _sampling_plan(config, started, done=i, total=len(tasks))
+    done_count = [0]
+
+    def _one(index_task):
+        i, task = index_task
+        k_initial, k_max = _sampling_plan(config, started,
+                                          done=done_count[0], total=len(tasks))
         try:
             result = run_task(config, local, remote, task, k_initial, k_max)
         except Exception as exc:  # a failed task must never sink the batch
@@ -85,14 +92,19 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                 route=Route.LOCAL, model=config.local_model,
                 remote_tokens=0, reason=f"error: {exc}",
             )
-        results.append(result)
+        done_count[0] += 1
         print(
-            f"[frugal-router] {i + 1}/{len(tasks)} {task.task_id} "
+            f"[frugal-router] {done_count[0]}/{len(tasks)} {task.task_id} "
             f"[{result.category.value}] -> {result.route.value} "
             f"(k={k_initial}..{k_max}, remote_tokens={result.remote_tokens})",
             file=sys.stderr,
         )
-    return results
+        return result
+
+    if config.workers <= 1:
+        return [_one(pair) for pair in enumerate(tasks)]
+    with ThreadPoolExecutor(max_workers=config.workers) as pool:
+        return list(pool.map(_one, enumerate(tasks)))
 
 
 def _sampling_plan(config: Config, started: float, done: int, total: int) -> tuple:

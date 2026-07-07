@@ -60,7 +60,8 @@ class Config:
     local_max_tokens: int = 1024
     remote_max_tokens: int = 512
     remote_max_tokens_code: int = 1600  # reasoning models eat budget before code
-    time_budget_seconds: float = 3300.0  # degrade sampling rather than not finish
+    time_budget_seconds: float = 540.0  # scoring budget ~10 min; leave boot margin
+    workers: int = 8  # concurrent tasks; local server batches these efficiently
     input_path: str = "/input/tasks.json"
     output_path: str = "/output/results.json"
 
@@ -113,7 +114,8 @@ def config_from_env() -> Config:
         thresholds=thresholds,
         consistency_samples=int(os.environ.get("CONSISTENCY_SAMPLES", "5")),
         consistency_samples_max=int(os.environ.get("CONSISTENCY_SAMPLES_MAX", "10")),
-        time_budget_seconds=float(os.environ.get("TIME_BUDGET_SECONDS", "3300")),
+        time_budget_seconds=float(os.environ.get("TIME_BUDGET_SECONDS", "540")),
+        workers=int(os.environ.get("WORKERS", "8")),
         input_path=os.environ.get("INPUT_PATH", Config.input_path),
         output_path=os.environ.get("OUTPUT_PATH", Config.output_path),
     )
