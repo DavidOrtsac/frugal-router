@@ -89,6 +89,18 @@ def config_from_env() -> Config:
         thresholds = {
             cat: (0.0 if base == 0.0 else override) for cat, base in thresholds.items()
         }
+    # Highest priority: full per-category maps as JSON, so tuned values ship
+    # via environment without code edits, e.g.
+    #   THRESHOLDS_JSON='{"math_reasoning": 0.8, "ner": 0.4}'
+    #   REMOTE_MAP_JSON='{"code_generation": "kimi-k2p7-code"}'
+    thresholds_json = os.environ.get("THRESHOLDS_JSON")
+    if thresholds_json:
+        for key, value in json.loads(thresholds_json).items():
+            thresholds[Category(key)] = float(value)
+    remote_map_json = os.environ.get("REMOTE_MAP_JSON")
+    if remote_map_json:
+        for key, value in json.loads(remote_map_json).items():
+            remote_by_category[Category(key)] = value
     return Config(
         local_base_url=os.environ.get("LOCAL_BASE_URL", Config.local_base_url),
         local_model=os.environ.get("LOCAL_MODEL", Config.local_model),

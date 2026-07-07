@@ -19,8 +19,10 @@ COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 # START_LOCAL_VLLM=1 launches vllm serve inside the container before routing.
+# LOCAL_MODEL chosen by bake-off: Qwen3-14B (93.6% local accuracy on dev set).
 ENV START_LOCAL_VLLM=1 \
-    LOCAL_MODEL=google/gemma-4-26B-A4B-it \
+    LOCAL_MODEL=Qwen/Qwen3-14B \
+    LOCAL_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}' \
     LOCAL_BASE_URL=http://localhost:8000/v1 \
     INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json
