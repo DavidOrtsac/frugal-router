@@ -28,6 +28,12 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
     classification = classify(task)
     category = classification.category
 
+    if config.thresholds.get(category, 0.6) > 1.0:
+        # Forced-remote (threshold unreachable): skip local sampling entirely.
+        # Used by --remote-only baselines and per-category forced escalation.
+        return _escalate(config, remote, task, category,
+                         reason="forced remote (threshold > 1)")
+
     calibration = calibrate_local(
         local, config.local_model, task, category,
         k_initial=k_initial, k_max=k_max, band=config.adaptive_band,
@@ -42,17 +48,26 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
             remote_tokens=0, reason=decision.reason,
         )
 
+    return _escalate(config, remote, task, category, reason=decision.reason,
+                     model=decision.model)
+
+
+def _escalate(config: Config, remote: ChatClient, task: Task, category: Category,
+              reason: str, model: str = None) -> TaskResult:
+    if model is None:
+        short_name = config.remote_by_category.get(category, "gemma-4-31b-it")
+        model = config.remote_model_prefix + short_name
     code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
     remote_budget = (config.remote_max_tokens_code if category in code_categories
                      else config.remote_max_tokens)
     completion = remote.complete(
-        decision.model, system_prompt(category), task.prompt,
+        model, system_prompt(category), task.prompt,
         temperature=0.0, max_tokens=remote_budget,
     )
     return TaskResult(
         task_id=task.task_id, answer=extract_answer(category, completion.text),
-        category=category, route=Route.REMOTE, model=decision.model,
-        remote_tokens=completion.total_tokens, reason=decision.reason,
+        category=category, route=Route.REMOTE, model=model,
+        remote_tokens=completion.total_tokens, reason=reason,
     )
 
 
