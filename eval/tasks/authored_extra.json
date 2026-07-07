@@ -1,0 +1,452 @@
+[
+  {
+    "task_id": "xfact-1",
+    "category": "factual_knowledge",
+    "prompt": "Which chemical element has the symbol W?",
+    "gold": {"answer": "Tungsten", "accept": ["Tungsten", "Wolfram"]}
+  },
+  {
+    "task_id": "xfact-2",
+    "category": "factual_knowledge",
+    "prompt": "Who wrote the novel Pride and Prejudice?",
+    "gold": {"answer": "Jane Austen", "accept": ["Jane Austen", "Austen"]}
+  },
+  {
+    "task_id": "xfact-3",
+    "category": "factual_knowledge",
+    "prompt": "What is the largest planet in our solar system?",
+    "gold": {"answer": "Jupiter"}
+  },
+  {
+    "task_id": "xfact-4",
+    "category": "factual_knowledge",
+    "prompt": "Which programming language was created by Guido van Rossum?",
+    "gold": {"answer": "Python"}
+  },
+  {
+    "task_id": "xfact-5",
+    "category": "factual_knowledge",
+    "prompt": "What is the longest river in South America?",
+    "gold": {"answer": "Amazon", "accept": ["Amazon", "Amazon River"]}
+  },
+  {
+    "task_id": "xfact-6",
+    "category": "factual_knowledge",
+    "prompt": "What is the capital city of Canada?",
+    "gold": {"answer": "Ottawa"}
+  },
+  {
+    "task_id": "xfact-7",
+    "category": "factual_knowledge",
+    "prompt": "In what year did the Chernobyl nuclear disaster occur?",
+    "gold": {"answer": "1986"}
+  },
+  {
+    "task_id": "xfact-8",
+    "category": "factual_knowledge",
+    "prompt": "Which artist painted The Persistence of Memory, the famous work depicting melting clocks?",
+    "gold": {"answer": "Salvador Dali", "accept": ["Dali", "Dalí"]}
+  },
+  {
+    "task_id": "xfact-9",
+    "category": "factual_knowledge",
+    "prompt": "Who was the first person to lead an expedition that reached the South Pole?",
+    "gold": {"answer": "Roald Amundsen", "accept": ["Amundsen"]}
+  },
+  {
+    "task_id": "xfact-10",
+    "category": "factual_knowledge",
+    "prompt": "Which scientist proposed the theory of continental drift in 1912?",
+    "gold": {"answer": "Alfred Wegener", "accept": ["Wegener"]}
+  },
+  {
+    "task_id": "xfact-11",
+    "category": "factual_knowledge",
+    "prompt": "The eruption of which volcano in 1815 caused the 'Year Without a Summer' in 1816?",
+    "gold": {"answer": "Mount Tambora", "accept": ["Tambora"]}
+  },
+  {
+    "task_id": "xfact-12",
+    "category": "factual_knowledge",
+    "prompt": "Who wrote the 1921 dystopian novel 'We', which influenced George Orwell's Nineteen Eighty-Four?",
+    "gold": {"answer": "Yevgeny Zamyatin", "accept": ["Zamyatin"]}
+  },
+  {
+    "task_id": "xfact-13",
+    "category": "factual_knowledge",
+    "prompt": "What is the name of the single vast ocean that surrounded the supercontinent Pangaea?",
+    "gold": {"answer": "Panthalassa"}
+  },
+  {
+    "task_id": "xfact-14",
+    "category": "factual_knowledge",
+    "prompt": "Who was the first woman to win the Fields Medal in mathematics?",
+    "gold": {"answer": "Maryam Mirzakhani", "accept": ["Mirzakhani"]}
+  },
+  {
+    "task_id": "xfact-15",
+    "category": "factual_knowledge",
+    "prompt": "What was the codename of the first full-scale hydrogen bomb test, conducted by the United States in 1952?",
+    "gold": {"answer": "Ivy Mike"}
+  },
+  {
+    "task_id": "xsent-1",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"Absolutely love this blender! It crushes ice in seconds, cleanup takes under a minute, and it looks great on the counter. Worth every penny.\"",
+    "gold": {"answer": "positive"}
+  },
+  {
+    "task_id": "xsent-2",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"The handle snapped off after two days of normal use and customer support never responded to my emails. Complete waste of money.\"",
+    "gold": {"answer": "negative"}
+  },
+  {
+    "task_id": "xsent-3",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"The package arrived on Tuesday and contained the charger, a USB-C cable, and the printed instruction manual.\"",
+    "gold": {"answer": "neutral"}
+  },
+  {
+    "task_id": "xsent-4",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"The staff upgraded us to a sea-view room for free, the breakfast buffet was outstanding, and the beds were the most comfortable I've ever slept in. We're already planning a return trip.\"",
+    "gold": {"answer": "positive"}
+  },
+  {
+    "task_id": "xsent-5",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"We waited over an hour for lukewarm pasta, the waiter forgot our drinks twice, and the bill included items we never ordered. Never going back.\"",
+    "gold": {"answer": "negative"}
+  },
+  {
+    "task_id": "xsent-6",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"This model comes in three colors, offers a 500GB storage option, and was released in March. It weighs about 180 grams.\"",
+    "gold": {"answer": "neutral"}
+  },
+  {
+    "task_id": "xsent-7",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"Shipping took almost two weeks, which was annoying, but honestly the jacket itself is gorgeous, fits perfectly, and feels far more expensive than it was. I'd order from them again in a heartbeat.\"",
+    "gold": {"answer": "positive"}
+  },
+  {
+    "task_id": "xsent-8",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"Oh fantastic, another update that wipes all my saved settings and adds three new ads to the home screen. Truly the innovation I've been waiting for.\"",
+    "gold": {"answer": "negative"}
+  },
+  {
+    "task_id": "xsent-9",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"The museum is open from 9 a.m. to 5 p.m. on weekdays, and admission includes access to the sculpture garden and the temporary exhibits.\"",
+    "gold": {"answer": "neutral"}
+  },
+  {
+    "task_id": "xsent-10",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"I walked in expecting nothing after the awful trailer, and walked out having laughed nonstop for two hours. Easily the best comedy I've seen all year.\"",
+    "gold": {"answer": "positive"}
+  },
+  {
+    "task_id": "xsent-11",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"Five stars for teaching me patience: I waited forty-five minutes for a cold burger, got charged twice, and was told the manager was 'too busy' to speak with me.\"",
+    "gold": {"answer": "negative"}
+  },
+  {
+    "task_id": "xsent-12",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"I used this software for about six months and then switched to a different tool when my team changed its workflow. We migrated our data over a weekend.\"",
+    "gold": {"answer": "neutral"}
+  },
+  {
+    "task_id": "xsent-13",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"I hate admitting this because I usually despise sequels, but this one genuinely improved on the original in every way: sharper writing, better pacing, and an ending that earned its emotion.\"",
+    "gold": {"answer": "positive"}
+  },
+  {
+    "task_id": "xsent-14",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"The screen is admittedly beautiful, but the battery dies by noon, it overheats during video calls, and the fingerprint sensor works maybe half the time. I'm returning it tomorrow.\"",
+    "gold": {"answer": "negative"}
+  },
+  {
+    "task_id": "xsent-15",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"The book has 412 pages and is divided into three parts, each covering a different decade of the city's history. It includes maps and an index.\"",
+    "gold": {"answer": "neutral"}
+  },
+  {
+    "task_id": "xner-1",
+    "category": "ner",
+    "prompt": "Extract all person entities from this sentence: \"After the merger, Elena Vasquez and Robert Chen were promoted to co-directors, replacing Margaret O'Leary.\"",
+    "gold": {"entities": ["Elena Vasquez", "Robert Chen", "Margaret O'Leary"]}
+  },
+  {
+    "task_id": "xner-2",
+    "category": "ner",
+    "prompt": "Extract all person entities from this sentence: \"Samuel Okafor presented his findings at the conference while his colleague Priya Nair fielded questions from reporters.\"",
+    "gold": {"entities": ["Samuel Okafor", "Priya Nair"]}
+  },
+  {
+    "task_id": "xner-3",
+    "category": "ner",
+    "prompt": "Extract all person entities from this sentence: \"Although Larkspur Motors was founded by Henry Larkspur in Detroit, day-to-day operations are now handled by Joan Whitfield.\"",
+    "gold": {"entities": ["Henry Larkspur", "Joan Whitfield"]}
+  },
+  {
+    "task_id": "xner-4",
+    "category": "ner",
+    "prompt": "Extract all location entities from this sentence: \"The expedition departed from Cape Town, crossed the Kalahari Desert, and finally reached Windhoek after three weeks.\"",
+    "gold": {"entities": ["Cape Town", "Kalahari Desert", "Windhoek"]}
+  },
+  {
+    "task_id": "xner-5",
+    "category": "ner",
+    "prompt": "Extract all location entities from this sentence: \"Flights from Reykjavik to Oslo were delayed after a severe storm swept across the North Sea.\"",
+    "gold": {"entities": ["Reykjavik", "Oslo", "North Sea"]}
+  },
+  {
+    "task_id": "xner-6",
+    "category": "ner",
+    "prompt": "Extract all location entities from this sentence: \"While living in Buenos Aires, Carla wrote weekly letters to her brother, who was stationed near Lake Geneva.\"",
+    "gold": {"entities": ["Buenos Aires", "Lake Geneva"]}
+  },
+  {
+    "task_id": "xner-7",
+    "category": "ner",
+    "prompt": "Extract all organization entities from this sentence: \"UNICEF partnered with Toyota and the World Health Organization to distribute vaccines across the region.\"",
+    "gold": {"entities": ["UNICEF", "Toyota", "World Health Organization"]}
+  },
+  {
+    "task_id": "xner-8",
+    "category": "ner",
+    "prompt": "Extract all organization entities from this sentence: \"After leaving Goldman Sachs, Marcus joined a small robotics startup that was later acquired by Siemens.\"",
+    "gold": {"entities": ["Goldman Sachs", "Siemens"]}
+  },
+  {
+    "task_id": "xner-9",
+    "category": "ner",
+    "prompt": "Extract all organization entities from this sentence: \"The report published by Reuters cited data from the European Central Bank and Stanford University.\"",
+    "gold": {"entities": ["Reuters", "European Central Bank", "Stanford University"]}
+  },
+  {
+    "task_id": "xner-10",
+    "category": "ner",
+    "prompt": "Extract all date entities from this sentence: \"The bridge opened on May 27, 1937, closed for structural repairs in 1994, and reopened on March 3, 1995.\"",
+    "gold": {"entities": ["May 27, 1937", "1994", "March 3, 1995"]}
+  },
+  {
+    "task_id": "xner-11",
+    "category": "ner",
+    "prompt": "Extract all date entities from this sentence: \"Registration begins on January 15 and closes on February 28, with results announced in April.\"",
+    "gold": {"entities": ["January 15", "February 28", "April"]}
+  },
+  {
+    "task_id": "xner-12",
+    "category": "ner",
+    "prompt": "Extract all date entities from this sentence: \"The manuscript, originally written in 1348, was not rediscovered until October 1892.\"",
+    "gold": {"entities": ["1348", "October 1892"]}
+  },
+  {
+    "task_id": "xner-13",
+    "category": "ner",
+    "prompt": "Extract all named entities (people and organizations) from this sentence: \"Satya Nadella announced that Microsoft would collaborate with NASA on the new simulation project.\"",
+    "gold": {"entities": ["Satya Nadella", "Microsoft", "NASA"]}
+  },
+  {
+    "task_id": "xner-14",
+    "category": "ner",
+    "prompt": "Extract all named entities (people and organizations) from this sentence: \"Greta Thunberg criticized both ExxonMobil and Shell during her closing speech.\"",
+    "gold": {"entities": ["Greta Thunberg", "ExxonMobil", "Shell"]}
+  },
+  {
+    "task_id": "xner-15",
+    "category": "ner",
+    "prompt": "Extract all named entities (people and organizations) from this sentence: \"The lifetime achievement award was presented to Chimamanda Ngozi Adichie by a representative of PEN America.\"",
+    "gold": {"entities": ["Chimamanda Ngozi Adichie", "PEN America"]}
+  },
+  {
+    "task_id": "xlogic-1",
+    "category": "logical_reasoning",
+    "prompt": "All dolphins are mammals. All mammals are warm-blooded. Are dolphins warm-blooded? Answer yes or no.",
+    "gold": {"answer": "yes"}
+  },
+  {
+    "task_id": "xlogic-2",
+    "category": "logical_reasoning",
+    "prompt": "What is the next number in the sequence: 2, 6, 12, 20, 30, ? Answer with a number.",
+    "gold": {"answer": "42"}
+  },
+  {
+    "task_id": "xlogic-3",
+    "category": "logical_reasoning",
+    "prompt": "Maya is older than Liam. Liam is older than Zoe. Who is the youngest of the three? Answer with a name.",
+    "gold": {"answer": "Zoe"}
+  },
+  {
+    "task_id": "xlogic-4",
+    "category": "logical_reasoning",
+    "prompt": "Which weighs more: a kilogram of feathers or a kilogram of iron? Answer with 'feathers', 'iron', or 'equal'.",
+    "gold": {"answer": "equal", "accept": ["equal", "they weigh the same", "neither"]}
+  },
+  {
+    "task_id": "xlogic-5",
+    "category": "logical_reasoning",
+    "prompt": "What is the next number in the sequence: 1, 1, 2, 3, 5, 8, 13, ? Answer with a number.",
+    "gold": {"answer": "21"}
+  },
+  {
+    "task_id": "xlogic-6",
+    "category": "logical_reasoning",
+    "prompt": "Four runners finish a race with no ties. Priya finishes before Quinn but after Rosa. Sam finishes last. Who wins the race? Answer with a name.",
+    "gold": {"answer": "Rosa"}
+  },
+  {
+    "task_id": "xlogic-7",
+    "category": "logical_reasoning",
+    "prompt": "Exactly one of three suspects is guilty, and only the guilty one lies; the other two tell the truth. Aria says: 'Ben did it.' Ben says: 'I did not do it.' Cody says: 'Aria did not do it.' Who is guilty? Answer with a name.",
+    "gold": {"answer": "Ben"}
+  },
+  {
+    "task_id": "xlogic-8",
+    "category": "logical_reasoning",
+    "prompt": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost? Answer in cents.",
+    "gold": {"answer": "5 cents", "accept": ["5 cents", "five cents", "$0.05", "0.05"]}
+  },
+  {
+    "task_id": "xlogic-9",
+    "category": "logical_reasoning",
+    "prompt": "If the day after tomorrow is Sunday, what day of the week was yesterday? Answer with the day name.",
+    "gold": {"answer": "Thursday"}
+  },
+  {
+    "task_id": "xlogic-10",
+    "category": "logical_reasoning",
+    "prompt": "What is the next number in the sequence: 3, 5, 9, 17, 33, ? Answer with a number.",
+    "gold": {"answer": "65"}
+  },
+  {
+    "task_id": "xlogic-11",
+    "category": "logical_reasoning",
+    "prompt": "Five books are stacked vertically. The red book is somewhere above the blue book. The blue book is somewhere above the yellow book. The green book is directly below the yellow book. The white book is at the bottom of the stack. Which color book is exactly in the middle of the stack? Answer with a color.",
+    "gold": {"answer": "yellow"}
+  },
+  {
+    "task_id": "xlogic-12",
+    "category": "logical_reasoning",
+    "prompt": "I am a two-digit number. I am a perfect square, and the sum of my digits is 13. What number am I? Answer with a number.",
+    "gold": {"answer": "49"}
+  },
+  {
+    "task_id": "xlogic-13",
+    "category": "logical_reasoning",
+    "prompt": "Three logicians each either always lie or always tell the truth. Dana says: 'Exactly one of us three tells the truth.' Eli says: 'Exactly two of us three tell the truth.' Fay says: 'All three of us lie.' Who tells the truth? Answer with a name.",
+    "gold": {"answer": "Dana"}
+  },
+  {
+    "task_id": "xlogic-14",
+    "category": "logical_reasoning",
+    "prompt": "What is the next number in the sequence: 1, 4, 9, 61, 52, 63, ? Answer with a number. (Hint: think about squares.)",
+    "gold": {"answer": "94"}
+  },
+  {
+    "task_id": "xlogic-15",
+    "category": "logical_reasoning",
+    "prompt": "A snail climbs a 10-meter wall. Each day it climbs up 3 meters, and each night it slides down 2 meters. On which day does it first reach the top of the wall? Answer with a number of days.",
+    "gold": {"answer": "8", "accept": ["8", "eight"]}
+  },
+  {
+    "task_id": "xsumm-1",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"The Eiffel Tower was completed in 1889 as the centerpiece of the World's Fair held in Paris to celebrate the centennial of the French Revolution. Designed by the engineering firm of Gustave Eiffel, the wrought-iron lattice tower was initially criticized by many artists as an eyesore. At roughly 300 meters, it was the tallest man-made structure in the world until the Chrysler Building surpassed it in 1930. Today it is one of the most visited paid monuments on Earth, drawing millions of tourists each year.\"",
+    "gold": {"keywords": ["Eiffel Tower", "Paris", "1889", "tallest"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-2",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"Honeybees communicate the location of food sources to their nestmates through a behavior known as the waggle dance. A returning forager moves in a figure-eight pattern on the honeycomb, and the angle of the dance relative to vertical encodes the direction of the food relative to the sun. The duration of the waggle phase indicates the distance from the hive. The Austrian scientist Karl von Frisch decoded this dance language and received a Nobel Prize in 1973 for his work.\"",
+    "gold": {"keywords": ["honeybees", "waggle dance", "hive", "Karl von Frisch"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-3",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"The Suez Canal is an artificial waterway in Egypt that connects the Mediterranean Sea to the Red Sea, allowing ships to travel between Europe and Asia without sailing around Africa. It opened in 1869 after a decade of construction overseen by the French diplomat Ferdinand de Lesseps. The canal is about 193 kilometers long and handles a significant share of global maritime trade. A major expansion completed in 2015 added a parallel channel along part of its length to increase capacity.\"",
+    "gold": {"keywords": ["Suez Canal", "Egypt", "Mediterranean", "Red Sea"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-4",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"Around the 1440s, Johannes Gutenberg of Mainz developed a printing system based on movable type cast in metal, a screw press, and oil-based ink. His workshop produced the famous Gutenberg Bible around 1455, demonstrating that books could be reproduced quickly and consistently. The technology spread rapidly across Europe, drastically lowering the cost of books. Historians credit the printing press with accelerating the spread of literacy, the Reformation, and the Scientific Revolution.\"",
+    "gold": {"keywords": ["Gutenberg", "printing press", "movable type", "Europe"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-5",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"Mount Everest, the highest mountain on Earth, rises about 8,849 meters above sea level in the Himalayas on the border between Nepal and the Tibet region of China. It is known as Sagarmatha in Nepal and Chomolungma in Tibet. The first confirmed ascent was made in 1953 by Edmund Hillary of New Zealand and Tenzing Norgay, a Sherpa mountaineer. Today hundreds of climbers attempt the summit each year, raising concerns about overcrowding and safety.\"",
+    "gold": {"keywords": ["Everest", "Himalayas", "Nepal", "1953"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-6",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"In 1928, Alexander Fleming noticed that a mold called Penicillium notatum had contaminated one of his bacterial culture plates at St Mary's Hospital in London and was killing the surrounding bacteria. This observation led to the development of penicillin, the world's first widely used antibiotic. Mass production techniques developed during the Second World War made the drug available to treat wounded soldiers. Fleming shared the 1945 Nobel Prize in Medicine with Howard Florey and Ernst Chain for the discovery.\"",
+    "gold": {"keywords": ["Fleming", "penicillin", "antibiotic", "mold"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-7",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"The Trans-Siberian Railway is the longest railway line in the world, stretching about 9,289 kilometers from Moscow to the Pacific port of Vladivostok. Construction began in 1891 under Tsar Alexander III and the main route was completed in 1916. A nonstop journey along the full route takes about seven days. The railway played a crucial role in opening Siberia to settlement and industry, and it remains a vital freight corridor for Russia today.\"",
+    "gold": {"keywords": ["Trans-Siberian", "Moscow", "Vladivostok", "railway"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-8",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"In May 1997, the IBM supercomputer Deep Blue defeated world chess champion Garry Kasparov in a six-game match, winning by a score of 3.5 to 2.5. It was the first time a computer had beaten a reigning world champion in a match played under standard tournament time controls. Kasparov had won an earlier match against the machine in 1996 before IBM substantially upgraded it. The victory became a landmark moment in the history of artificial intelligence.\"",
+    "gold": {"keywords": ["Deep Blue", "Kasparov", "chess", "IBM"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-9",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"The Great Wall of China is a series of fortifications built across northern China over many centuries to protect against raids by nomadic groups from the steppe. Most of the well-preserved sections that tourists visit today were built during the Ming dynasty between the 14th and 17th centuries. A 2012 survey by China's cultural heritage administration estimated the combined length of all wall sections at over 21,000 kilometers. Contrary to popular myth, the wall is not visible to the naked eye from the Moon.\"",
+    "gold": {"keywords": ["Great Wall", "China", "Ming dynasty", "fortifications"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-10",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"CRISPR is a gene-editing technology adapted from a natural defense system that bacteria use to fight viruses. Scientists pair a guide RNA with the Cas9 enzyme to cut DNA at a precise location, allowing genes to be disabled, repaired, or replaced. Jennifer Doudna and Emmanuelle Charpentier received the 2020 Nobel Prize in Chemistry for developing the method. The technology is now being tested in treatments for genetic disorders such as sickle cell disease, while its potential use in human embryos remains ethically controversial.\"",
+    "gold": {"keywords": ["CRISPR", "gene", "DNA", "bacteria"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-11",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"In the year 79 AD, the eruption of Mount Vesuvius buried the Roman city of Pompeii under several meters of volcanic ash and pumice. The rapid burial preserved buildings, frescoes, household objects, and even the shapes of victims' bodies in remarkable detail. The city lay largely forgotten until systematic excavations began in the 18th century. Today Pompeii is one of the most important archaeological sites in the world, offering a snapshot of daily life in ancient Rome.\"",
+    "gold": {"keywords": ["Pompeii", "Vesuvius", "eruption", "Roman"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-12",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"ARPANET, funded by the United States Department of Defense, transmitted its first message between computers at UCLA and the Stanford Research Institute in October 1969. It was the first wide-area network to use packet switching, a technique that breaks data into small blocks that travel independently across the network. In 1983, ARPANET adopted the TCP/IP protocol suite, which became the technical foundation of the modern internet. The network was formally decommissioned in 1990, by which time the internet had far outgrown it.\"",
+    "gold": {"keywords": ["ARPANET", "packet switching", "internet", "1969"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-13",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"Each autumn, monarch butterflies from eastern North America undertake a migration of up to 4,800 kilometers to spend the winter in oyamel fir forests in the mountains of central Mexico. No single butterfly completes the round trip; it takes several generations to return north the following spring and summer. Monarch caterpillars feed exclusively on milkweed plants, which makes the loss of milkweed habitat a major threat to the species. Conservation programs now encourage planting milkweed along the migration corridor.\"",
+    "gold": {"keywords": ["monarch", "migration", "Mexico", "milkweed"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-14",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"The Hagia Sophia in Istanbul was completed in 537 AD under the Byzantine emperor Justinian I, when the city was known as Constantinople. Its massive central dome was an engineering marvel that influenced religious architecture for centuries. The building served as a Christian cathedral for over 900 years, became a mosque after the Ottoman conquest in 1453, and was converted into a museum in 1935. In 2020, the Turkish government reclassified it as a mosque once again.\"",
+    "gold": {"keywords": ["Hagia Sophia", "Istanbul", "Justinian", "dome"], "min_coverage": 0.5}
+  },
+  {
+    "task_id": "xsumm-15",
+    "category": "text_summarization",
+    "prompt": "Summarize the following text: \"Voyager 1, launched by NASA in 1977, flew past Jupiter and Saturn before continuing toward the edge of the solar system. In 2012 it became the first human-made object to enter interstellar space, crossing the boundary where the sun's solar wind gives way to the plasma of the galaxy. The spacecraft carries a Golden Record containing sounds and images intended to portray life on Earth to any intelligent life that might find it. More than four decades after launch, it is the most distant human-made object and still transmits data back to Earth.\"",
+    "gold": {"keywords": ["Voyager 1", "NASA", "interstellar", "Golden Record"], "min_coverage": 0.5}
+  }
+]

@@ -80,6 +80,146 @@
   }
  },
  {
+  "task_id": "xfact-3",
+  "category": "factual_knowledge",
+  "prompt": "What is the largest planet in our solar system?",
+  "gold": {
+   "answer": "Jupiter"
+  }
+ },
+ {
+  "task_id": "xfact-6",
+  "category": "factual_knowledge",
+  "prompt": "What is the capital city of Canada?",
+  "gold": {
+   "answer": "Ottawa"
+  }
+ },
+ {
+  "task_id": "xfact-9",
+  "category": "factual_knowledge",
+  "prompt": "Who was the first person to lead an expedition that reached the South Pole?",
+  "gold": {
+   "answer": "Roald Amundsen",
+   "accept": [
+    "Amundsen"
+   ]
+  }
+ },
+ {
+  "task_id": "xfact-11",
+  "category": "factual_knowledge",
+  "prompt": "The eruption of which volcano in 1815 caused the 'Year Without a Summer' in 1816?",
+  "gold": {
+   "answer": "Mount Tambora",
+   "accept": [
+    "Tambora"
+   ]
+  }
+ },
+ {
+  "task_id": "xsent-12",
+  "category": "sentiment_classification",
+  "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"I used this software for about six months and then switched to a different tool when my team changed its workflow. We migrated our data over a weekend.\"",
+  "gold": {
+   "answer": "neutral"
+  }
+ },
+ {
+  "task_id": "xsent-13",
+  "category": "sentiment_classification",
+  "prompt": "Classify the sentiment of this review as positive, negative, or neutral: \"I hate admitting this because I usually despise sequels, but this one genuinely improved on the original in every way: sharper writing, better pacing, and an ending that earned its emotion.\"",
+  "gold": {
+   "answer": "positive"
+  }
+ },
+ {
+  "task_id": "xlogic-2",
+  "category": "logical_reasoning",
+  "prompt": "What is the next number in the sequence: 2, 6, 12, 20, 30, ? Answer with a number.",
+  "gold": {
+   "answer": "42"
+  }
+ },
+ {
+  "task_id": "xlogic-5",
+  "category": "logical_reasoning",
+  "prompt": "What is the next number in the sequence: 1, 1, 2, 3, 5, 8, 13, ? Answer with a number.",
+  "gold": {
+   "answer": "21"
+  }
+ },
+ {
+  "task_id": "xlogic-11",
+  "category": "logical_reasoning",
+  "prompt": "Five books are stacked vertically. The red book is somewhere above the blue book. The blue book is somewhere above the yellow book. The green book is directly below the yellow book. The white book is at the bottom of the stack. Which color book is exactly in the middle of the stack? Answer with a color.",
+  "gold": {
+   "answer": "yellow"
+  }
+ },
+ {
+  "task_id": "xlogic-14",
+  "category": "logical_reasoning",
+  "prompt": "What is the next number in the sequence: 1, 4, 9, 61, 52, 63, ? Answer with a number. (Hint: think about squares.)",
+  "gold": {
+   "answer": "94"
+  }
+ },
+ {
+  "task_id": "xlogic-15",
+  "category": "logical_reasoning",
+  "prompt": "A snail climbs a 10-meter wall. Each day it climbs up 3 meters, and each night it slides down 2 meters. On which day does it first reach the top of the wall? Answer with a number of days.",
+  "gold": {
+   "answer": "8",
+   "accept": [
+    "8",
+    "eight"
+   ]
+  }
+ },
+ {
+  "task_id": "xsumm-8",
+  "category": "text_summarization",
+  "prompt": "Summarize the following text: \"In May 1997, the IBM supercomputer Deep Blue defeated world chess champion Garry Kasparov in a six-game match, winning by a score of 3.5 to 2.5. It was the first time a computer had beaten a reigning world champion in a match played under standard tournament time controls. Kasparov had won an earlier match against the machine in 1996 before IBM substantially upgraded it. The victory became a landmark moment in the history of artificial intelligence.\"",
+  "gold": {
+   "keywords": [
+    "Deep Blue",
+    "Kasparov",
+    "chess",
+    "IBM"
+   ],
+   "min_coverage": 0.5
+  }
+ },
+ {
+  "task_id": "xsumm-14",
+  "category": "text_summarization",
+  "prompt": "Summarize the following text: \"The Hagia Sophia in Istanbul was completed in 537 AD under the Byzantine emperor Justinian I, when the city was known as Constantinople. Its massive central dome was an engineering marvel that influenced religious architecture for centuries. The building served as a Christian cathedral for over 900 years, became a mosque after the Ottoman conquest in 1453, and was converted into a museum in 1935. In 2020, the Turkish government reclassified it as a mosque once again.\"",
+  "gold": {
+   "keywords": [
+    "Hagia Sophia",
+    "Istanbul",
+    "Justinian",
+    "dome"
+   ],
+   "min_coverage": 0.5
+  }
+ },
+ {
+  "task_id": "xsumm-15",
+  "category": "text_summarization",
+  "prompt": "Summarize the following text: \"Voyager 1, launched by NASA in 1977, flew past Jupiter and Saturn before continuing toward the edge of the solar system. In 2012 it became the first human-made object to enter interstellar space, crossing the boundary where the sun's solar wind gives way to the plasma of the galaxy. The spacecraft carries a Golden Record containing sounds and images intended to portray life on Earth to any intelligent life that might find it. More than four decades after launch, it is the most distant human-made object and still transmits data back to Earth.\"",
+  "gold": {
+   "keywords": [
+    "Voyager 1",
+    "NASA",
+    "interstellar",
+    "Golden Record"
+   ],
+   "min_coverage": 0.5
+  }
+ },
+ {
   "task_id": "gsm8k-2",
   "category": "math_reasoning",
   "prompt": "Jordan has 2 children who wear diapers.  Each child requires 5 diaper changes per day.  Jordan's wife changes half of the diapers.  How many diapers does Jordan change per day?",
