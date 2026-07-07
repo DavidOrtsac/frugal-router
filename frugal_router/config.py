@@ -53,8 +53,11 @@ class Config:
     remote_by_category: dict = field(default_factory=lambda: dict(DEFAULT_REMOTE_BY_CATEGORY))
     thresholds: dict = field(default_factory=lambda: dict(DEFAULT_THRESHOLDS))
     consistency_samples: int = 5
+    consistency_samples_max: int = 10  # adaptive extension for borderline agreement
+    adaptive_band: tuple = (0.3, 0.9)  # extend sampling when score falls inside
     local_max_tokens: int = 1024
     remote_max_tokens: int = 512
+    time_budget_seconds: float = 3300.0  # degrade sampling rather than not finish
     input_path: str = "/input/tasks.json"
     output_path: str = "/output/results.json"
 
@@ -82,6 +85,8 @@ def config_from_env() -> Config:
         allowed_models=allowed_models,
         thresholds=thresholds,
         consistency_samples=int(os.environ.get("CONSISTENCY_SAMPLES", "5")),
+        consistency_samples_max=int(os.environ.get("CONSISTENCY_SAMPLES_MAX", "10")),
+        time_budget_seconds=float(os.environ.get("TIME_BUDGET_SECONDS", "3300")),
         input_path=os.environ.get("INPUT_PATH", Config.input_path),
         output_path=os.environ.get("OUTPUT_PATH", Config.output_path),
     )

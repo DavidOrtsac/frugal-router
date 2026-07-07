@@ -49,6 +49,8 @@ def build_clients(args, dev_tasks):
 
 def _gold_as_text(task: dict) -> str:
     gold = task["gold"]
+    if "_reference" in gold:
+        return gold["_reference"]
     if "answer" in gold:
         return str(gold["answer"])
     if "entities" in gold:

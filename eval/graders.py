@@ -59,17 +59,39 @@ def _grade_entity_set(answer: str, gold: dict) -> bool:
 
 
 def _grade_code(answer: str, gold: dict) -> bool:
-    """Execute candidate code and check authored test cases."""
-    namespace: dict = {}
-    exec(answer, namespace)  # dev-set code only; we authored every case
-    func = namespace.get(gold["function"])
+    """Execute candidate code and check test cases.
+
+    Two gold styles:
+    - authored: {"function", "tests": [{"args", "expected"}]}
+    - HumanEval: {"function", "check_code", "context"} where check_code defines
+      check(candidate) that asserts behavior. context is the original prompt
+      (imports + signature) for models that answer with a body-only completion.
+    """
+    func, namespace = _load_function(answer, gold)
     if func is None:
         return False
+    if "check_code" in gold:
+        exec(gold["check_code"], namespace)
+        namespace["check"](func)
+        return True
     for case in gold["tests"]:
         result = func(*case["args"])
         if result != case["expected"]:
             return False
     return True
+
+
+def _load_function(answer: str, gold: dict):
+    for source in (answer, gold.get("context", "") + "\n" + answer):
+        try:
+            namespace: dict = {}
+            exec(source, namespace)
+            func = namespace.get(gold["function"])
+            if func is not None:
+                return func, namespace
+        except Exception:
+            continue
+    return None, {}
 
 
 _GRADERS = {

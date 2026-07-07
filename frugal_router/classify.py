@@ -12,7 +12,7 @@ from .schemas import Category, Classification, Task
 _CODE_BLOCK = re.compile(r"```|def |function |class |;\s*$|\breturn\b", re.MULTILINE)
 _DEBUG_WORDS = re.compile(r"\b(bug|fix|debug|error|incorrect|broken|wrong output|fails?)\b", re.I)
 _CODEGEN_WORDS = re.compile(
-    r"\b(write|implement|create|generate)\b.{0,40}\b(function|class|method|script|program|code)\b", re.I
+    r"\b(write|implement|create|generate|complete)\b.{0,40}\b(function|class|method|script|program|code)\b", re.I
 )
 _SUMMARY_WORDS = re.compile(r"\b(summariz|summary|tl;?dr|condense|shorten)\w*\b", re.I)
 _SENTIMENT_WORDS = re.compile(r"\b(sentiment|positive|negative|neutral)\b.*\b(review|text|sentence|statement)\b|classify the sentiment|sentiment of", re.I)

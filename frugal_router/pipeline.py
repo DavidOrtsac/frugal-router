@@ -4,10 +4,15 @@ read /input/tasks.json ([{task_id, prompt}]) → write /output/results.json
 
 Flow per task: classify (free) → local self-consistency sampling (free) →
 escalation decision → remote call only when calibration is below threshold.
+
+Time budget: an unanswered task is a wrong task, so if the projected runtime
+exceeds the budget, later tasks degrade to fewer samples instead of the batch
+ever failing to finish.
 """
 
 import json
 import sys
+import time
 
 from .calibrate import calibrate_local
 from .clients import ChatClient
@@ -18,13 +23,15 @@ from .prompts import extract_answer, system_prompt
 from .schemas import Route, Task, TaskResult
 
 
-def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task) -> TaskResult:
+def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
+             k_initial: int, k_max: int) -> TaskResult:
     classification = classify(task)
     category = classification.category
 
     calibration = calibrate_local(
         local, config.local_model, task, category,
-        k=config.consistency_samples, max_tokens=config.local_max_tokens,
+        k_initial=k_initial, k_max=k_max, band=config.adaptive_band,
+        max_tokens=config.local_max_tokens,
     )
     decision = decide(config, category, calibration)
 
@@ -47,10 +54,12 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task) 
 
 
 def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list) -> list:
+    started = time.monotonic()
     results = []
     for i, task in enumerate(tasks):
+        k_initial, k_max = _sampling_plan(config, started, done=i, total=len(tasks))
         try:
-            result = run_task(config, local, remote, task)
+            result = run_task(config, local, remote, task, k_initial, k_max)
         except Exception as exc:  # a failed task must never sink the batch
             print(f"[frugal-router] task {task.task_id} failed: {exc}", file=sys.stderr)
             result = TaskResult(
@@ -62,10 +71,25 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
         print(
             f"[frugal-router] {i + 1}/{len(tasks)} {task.task_id} "
             f"[{result.category.value}] -> {result.route.value} "
-            f"(remote_tokens={result.remote_tokens})",
+            f"(k={k_initial}..{k_max}, remote_tokens={result.remote_tokens})",
             file=sys.stderr,
         )
     return results
+
+
+def _sampling_plan(config: Config, started: float, done: int, total: int) -> tuple:
+    """Shrink sampling when the projected runtime would blow the time budget."""
+    if done == 0:
+        return config.consistency_samples, config.consistency_samples_max
+    elapsed = time.monotonic() - started
+    projected_total = elapsed / done * total
+    if projected_total <= config.time_budget_seconds * 0.85:
+        return config.consistency_samples, config.consistency_samples_max
+    if projected_total <= config.time_budget_seconds:
+        return max(3, config.consistency_samples - 2), config.consistency_samples
+    print("[frugal-router] time budget pressure: degrading to single-sample mode",
+          file=sys.stderr)
+    return 1, 1
 
 
 def load_tasks(path: str) -> list:
