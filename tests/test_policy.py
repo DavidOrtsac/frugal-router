@@ -41,3 +41,24 @@ def test_remote_model_always_in_allowed_list():
         if decision.route == Route.REMOTE:
             short = decision.model.removeprefix(config.remote_model_prefix)
             assert short in config.allowed_models
+
+
+def test_resolver_handles_full_path_allowed_list():
+    from dataclasses import replace
+    from frugal_router.policy import resolve_remote_model
+    config = replace(Config(), allowed_models=(
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/gemma-4-31b-it",
+    ))
+    assert resolve_remote_model(config, "gemma-4-31b-it") == \
+        "accounts/fireworks/models/gemma-4-31b-it"
+    # preferred model absent -> falls back to a gemma FROM the list, no invention
+    assert resolve_remote_model(config, "minimax-m3") == \
+        "accounts/fireworks/models/gemma-4-31b-it"
+
+
+def test_resolver_handles_short_name_allowed_list():
+    from frugal_router.policy import resolve_remote_model
+    config = Config()
+    assert resolve_remote_model(config, "accounts/fireworks/models/kimi-k2p7-code") == \
+        "accounts/fireworks/models/kimi-k2p7-code"

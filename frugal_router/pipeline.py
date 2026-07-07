@@ -19,7 +19,7 @@ from .calibrate import calibrate_local
 from .clients import ChatClient
 from .config import Config
 from .classify import classify
-from .policy import decide
+from .policy import decide, resolve_remote_model
 from .prompts import extract_answer, system_prompt
 from .schemas import Category, Route, Task, TaskResult
 
@@ -56,8 +56,8 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
 def _escalate(config: Config, remote: ChatClient, task: Task, category: Category,
               reason: str, model: str = None) -> TaskResult:
     if model is None:
-        short_name = config.remote_by_category.get(category, "gemma-4-31b-it")
-        model = config.remote_model_prefix + short_name
+        preferred = config.remote_by_category.get(category, "gemma-4-31b-it")
+        model = resolve_remote_model(config, preferred)
     code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
     remote_budget = (config.remote_max_tokens_code if category in code_categories
                      else config.remote_max_tokens)

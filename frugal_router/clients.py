@@ -66,20 +66,28 @@ class OpenAICompatClient:
     def complete_many(self, model: str, system: str, user: str,
                       temperature: float = 0.7, n: int = 4,
                       max_tokens: int = 512) -> list:
-        """n sampled completions in ONE request — vLLM shares the prompt
-        computation across choices, so k-sample calibration costs barely more
-        wall-clock than a single generation."""
-        resp = self._create(model, system, user,
-                            temperature=temperature, max_tokens=max_tokens, n=n)
-        usage = resp.usage
-        first = Completion(
-            text=resp.choices[0].message.content or "",
-            prompt_tokens=usage.prompt_tokens if usage else 0,
-            completion_tokens=usage.completion_tokens if usage else 0,
-        )
-        rest = [Completion(text=c.message.content or "", prompt_tokens=0, completion_tokens=0)
-                for c in resp.choices[1:]]
-        return [first] + rest
+        """n sampled completions, in ONE request where the server supports it
+        (vLLM shares prompt computation across choices). Servers that reject
+        or ignore n>1 (llama.cpp) fall back to sequential single calls."""
+        try:
+            resp = self._create(model, system, user,
+                                temperature=temperature, max_tokens=max_tokens, n=n)
+            usage = resp.usage
+            first = Completion(
+                text=resp.choices[0].message.content or "",
+                prompt_tokens=usage.prompt_tokens if usage else 0,
+                completion_tokens=usage.completion_tokens if usage else 0,
+            )
+            completions = [first] + [
+                Completion(text=c.message.content or "", prompt_tokens=0, completion_tokens=0)
+                for c in resp.choices[1:]
+            ]
+        except Exception:
+            completions = []
+        while len(completions) < n:
+            completions.append(self.complete(model, system, user,
+                                             temperature=temperature, max_tokens=max_tokens))
+        return completions
 
 
 class MockClient:
