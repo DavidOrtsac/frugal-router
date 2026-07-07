@@ -1,6 +1,7 @@
 """Environment-driven configuration. Every scoring lever lives here so the eval
 harness can sweep it without code changes."""
 
+import json
 import os
 from dataclasses import dataclass, field
 
@@ -46,6 +47,7 @@ DEFAULT_THRESHOLDS = {
 class Config:
     local_base_url: str = "http://localhost:8000/v1"
     local_model: str = "google/gemma-4-26B-A4B-it"
+    local_extra_body: dict = field(default_factory=dict)  # e.g. disable Qwen3 thinking
     fireworks_base_url: str = "https://api.fireworks.ai/inference/v1"
     fireworks_api_key: str = ""
     remote_model_prefix: str = "accounts/fireworks/models/"
@@ -79,6 +81,7 @@ def config_from_env() -> Config:
     return Config(
         local_base_url=os.environ.get("LOCAL_BASE_URL", Config.local_base_url),
         local_model=os.environ.get("LOCAL_MODEL", Config.local_model),
+        local_extra_body=json.loads(os.environ.get("LOCAL_EXTRA_BODY", "{}")),
         fireworks_base_url=os.environ.get("FIREWORKS_BASE_URL", Config.fireworks_base_url),
         fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", ""),
         remote_model_prefix=os.environ.get("REMOTE_MODEL_PREFIX", Config.remote_model_prefix),

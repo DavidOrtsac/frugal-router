@@ -15,11 +15,16 @@ class ChatClient(Protocol):
 
 
 class OpenAICompatClient:
-    """Wraps any OpenAI-compatible endpoint (vLLM serve, Fireworks)."""
+    """Wraps any OpenAI-compatible endpoint (vLLM serve, Fireworks).
 
-    def __init__(self, base_url: str, api_key: str = "EMPTY"):
+    extra_body is forwarded verbatim — used e.g. to disable Qwen3 thinking
+    mode via {"chat_template_kwargs": {"enable_thinking": false}}.
+    """
+
+    def __init__(self, base_url: str, api_key: str = "EMPTY", extra_body: dict = None):
         from openai import OpenAI  # lazy import so offline tools need no deps
         self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY")
+        self._extra_body = dict(extra_body) if extra_body else None
 
     def complete(self, model: str, system: str, user: str,
                  temperature: float = 0.0, max_tokens: int = 512) -> Completion:
@@ -31,6 +36,7 @@ class OpenAICompatClient:
             ],
             temperature=temperature,
             max_tokens=max_tokens,
+            extra_body=self._extra_body,
         )
         usage = resp.usage
         return Completion(

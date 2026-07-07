@@ -42,7 +42,7 @@ def build_clients(args, dev_tasks):
         return local, remote
     config = config_from_env()
     return (
-        OpenAICompatClient(config.local_base_url),
+        OpenAICompatClient(config.local_base_url, extra_body=config.local_extra_body),
         OpenAICompatClient(config.fireworks_base_url, config.fireworks_api_key),
     )
 

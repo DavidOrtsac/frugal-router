@@ -3,6 +3,8 @@
 2. Keep escalation prompts minimal — no few-shot padding on the remote path.
 """
 
+import re
+
 from .schemas import Category
 
 SYSTEM_PROMPTS = {
@@ -24,9 +26,12 @@ def system_prompt(category: Category) -> str:
     return SYSTEM_PROMPTS[category]
 
 
+_THINK_BLOCK = re.compile(r"<think>.*?(?:</think>|$)", re.DOTALL | re.IGNORECASE)
+
+
 def extract_answer(category: Category, text: str) -> str:
     """Pull the gradable answer out of a completion."""
-    cleaned = text.strip()
+    cleaned = _THINK_BLOCK.sub("", text).strip()
     if category in _MARKER_CATEGORIES:
         marker = cleaned.rfind("ANSWER:")
         if marker != -1:
