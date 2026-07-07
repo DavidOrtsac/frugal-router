@@ -29,18 +29,33 @@ class OpenAICompatClient:
         self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY")
         self._extra_body = dict(extra_body) if extra_body else None
 
+    def _create(self, model: str, system: str, user: str, **kwargs):
+        """Some chat templates (notably Gemma's) reject a system role —
+        fall back to folding the instruction into the user message."""
+        try:
+            return self._client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                extra_body=self._extra_body,
+                **kwargs,
+            )
+        except Exception as exc:
+            if "system role" not in str(exc).lower():
+                raise
+            return self._client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": f"{system}\n\n{user}"}],
+                extra_body=self._extra_body,
+                **kwargs,
+            )
+
     def complete(self, model: str, system: str, user: str,
                  temperature: float = 0.0, max_tokens: int = 512) -> Completion:
-        resp = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens,
-            extra_body=self._extra_body,
-        )
+        resp = self._create(model, system, user,
+                            temperature=temperature, max_tokens=max_tokens)
         usage = resp.usage
         return Completion(
             text=resp.choices[0].message.content or "",
@@ -54,17 +69,8 @@ class OpenAICompatClient:
         """n sampled completions in ONE request — vLLM shares the prompt
         computation across choices, so k-sample calibration costs barely more
         wall-clock than a single generation."""
-        resp = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens,
-            n=n,
-            extra_body=self._extra_body,
-        )
+        resp = self._create(model, system, user,
+                            temperature=temperature, max_tokens=max_tokens, n=n)
         usage = resp.usage
         first = Completion(
             text=resp.choices[0].message.content or "",

@@ -71,6 +71,16 @@ def config_from_env() -> Config:
         if allowed
         else DEFAULT_ALLOWED_MODELS
     )
+    remote_by_category = dict(DEFAULT_REMOTE_BY_CATEGORY)
+    remote_default = os.environ.get("REMOTE_DEFAULT_MODEL")
+    if remote_default:
+        remote_code = os.environ.get("REMOTE_CODE_MODEL", remote_default)
+        code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
+        remote_by_category = {
+            cat: (remote_code if cat in code_categories else remote_default)
+            for cat in Category
+        }
+
     global_threshold = os.environ.get("CONSISTENCY_THRESHOLD")
     thresholds = dict(DEFAULT_THRESHOLDS)
     if global_threshold is not None:
@@ -86,6 +96,7 @@ def config_from_env() -> Config:
         fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", ""),
         remote_model_prefix=os.environ.get("REMOTE_MODEL_PREFIX", Config.remote_model_prefix),
         allowed_models=allowed_models,
+        remote_by_category=remote_by_category,
         thresholds=thresholds,
         consistency_samples=int(os.environ.get("CONSISTENCY_SAMPLES", "5")),
         consistency_samples_max=int(os.environ.get("CONSISTENCY_SAMPLES_MAX", "10")),
