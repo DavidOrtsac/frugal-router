@@ -46,11 +46,15 @@ def calibrate_local(client: ChatClient, model: str, task: Task, category: Catego
 def _sample(client: ChatClient, model: str, task: Task, category: Category,
             n: int, max_tokens: int, greedy_first: bool) -> list:
     answers = []
-    for i in range(n):
-        temp = 0.0 if (greedy_first and i == 0) else 0.7
+    if greedy_first:
         completion = client.complete(model, system_prompt(category), task.prompt,
-                                     temperature=temp, max_tokens=max_tokens)
+                                     temperature=0.0, max_tokens=max_tokens)
         answers.append(extract_answer(category, completion.text))
+        n -= 1
+    if n > 0:
+        completions = client.complete_many(model, system_prompt(category), task.prompt,
+                                           temperature=0.7, n=n, max_tokens=max_tokens)
+        answers.extend(extract_answer(category, c.text) for c in completions)
     return answers
 
 

@@ -19,6 +19,10 @@ class ScriptedClient:
         text = self._responses.pop(0)
         return Completion(text=text, prompt_tokens=1, completion_tokens=1)
 
+    def complete_many(self, model, system, user, temperature=0.7, n=4, max_tokens=512):
+        return [self.complete(model, system, user, temperature, max_tokens)
+                for _ in range(n)]
+
 
 def test_normalize_math_equates_number_formats():
     assert normalize(Category.MATH, "ANSWER: 6.0") == normalize(Category.MATH, "6")

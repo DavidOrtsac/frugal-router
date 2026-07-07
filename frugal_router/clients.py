@@ -13,6 +13,9 @@ class ChatClient(Protocol):
     def complete(self, model: str, system: str, user: str,
                  temperature: float, max_tokens: int) -> Completion: ...
 
+    def complete_many(self, model: str, system: str, user: str,
+                      temperature: float, n: int, max_tokens: int) -> list: ...
+
 
 class OpenAICompatClient:
     """Wraps any OpenAI-compatible endpoint (vLLM serve, Fireworks).
@@ -44,6 +47,33 @@ class OpenAICompatClient:
             prompt_tokens=usage.prompt_tokens if usage else 0,
             completion_tokens=usage.completion_tokens if usage else 0,
         )
+
+    def complete_many(self, model: str, system: str, user: str,
+                      temperature: float = 0.7, n: int = 4,
+                      max_tokens: int = 512) -> list:
+        """n sampled completions in ONE request — vLLM shares the prompt
+        computation across choices, so k-sample calibration costs barely more
+        wall-clock than a single generation."""
+        resp = self._client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            n=n,
+            extra_body=self._extra_body,
+        )
+        usage = resp.usage
+        first = Completion(
+            text=resp.choices[0].message.content or "",
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
+        )
+        rest = [Completion(text=c.message.content or "", prompt_tokens=0, completion_tokens=0)
+                for c in resp.choices[1:]]
+        return [first] + rest
 
 
 class MockClient:
@@ -77,3 +107,9 @@ class MockClient:
         approx_completion_tokens = max(1, len(text) // 4)
         return Completion(text=text, prompt_tokens=approx_prompt_tokens,
                           completion_tokens=approx_completion_tokens)
+
+    def complete_many(self, model: str, system: str, user: str,
+                      temperature: float = 0.7, n: int = 4,
+                      max_tokens: int = 512) -> list:
+        return [self.complete(model, system, user, temperature, max_tokens)
+                for _ in range(n)]
