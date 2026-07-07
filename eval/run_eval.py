@@ -103,6 +103,7 @@ def evaluate(config, local, remote, dev_tasks) -> dict:
     per_category = defaultdict(lambda: {"correct": 0, "total": 0, "local": 0})
     correct = 0
     remote_tokens = 0
+    dump = []
     for r in results:
         dev = gold_by_id[r.task_id]
         ok = grade(dev["category"], r.answer, dev["gold"])
@@ -112,6 +113,12 @@ def evaluate(config, local, remote, dev_tasks) -> dict:
         stats["local"] += int(r.remote_tokens == 0)
         correct += int(ok)
         remote_tokens += r.remote_tokens
+        dump.append({
+            "task_id": r.task_id, "category": dev["category"],
+            "route": r.route.value, "model": r.model, "correct": ok,
+            "remote_tokens": r.remote_tokens, "reason": r.reason,
+            "answer": r.answer[:400],
+        })
 
     total = len(results)
     local_count = sum(1 for r in results if r.remote_tokens == 0)
@@ -120,6 +127,7 @@ def evaluate(config, local, remote, dev_tasks) -> dict:
         "offload_rate": local_count / total,
         "remote_tokens": remote_tokens,
         "per_category": {k: dict(v) for k, v in sorted(per_category.items())},
+        "_dump": dump,
     }
 
 
@@ -131,6 +139,8 @@ def main() -> int:
     parser.add_argument("--local-only", action="store_true")
     parser.add_argument("--remote-only", action="store_true")
     parser.add_argument("--tasks", default=DEV_TASKS_PATH)
+    parser.add_argument("--dump", default=None,
+                        help="write per-task records (route, correctness, answer) to this JSON file")
     args = parser.parse_args()
 
     dev_tasks = load_dev_tasks(args.tasks)
@@ -138,6 +148,10 @@ def main() -> int:
     local, remote = build_clients(args, dev_tasks)
 
     summary = evaluate(config, local, remote, dev_tasks)
+    dump = summary.pop("_dump")
+    if args.dump:
+        with open(args.dump, "w", encoding="utf-8") as f:
+            json.dump(dump, f, ensure_ascii=False, indent=1)
     print(json.dumps(summary, indent=2))
     return 0
 

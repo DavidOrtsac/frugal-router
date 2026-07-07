@@ -59,6 +59,7 @@ class Config:
     adaptive_band: tuple = (0.3, 0.9)  # extend sampling when score falls inside
     local_max_tokens: int = 1024
     remote_max_tokens: int = 512
+    remote_max_tokens_code: int = 1600  # reasoning models eat budget before code
     time_budget_seconds: float = 3300.0  # degrade sampling rather than not finish
     input_path: str = "/input/tasks.json"
     output_path: str = "/output/results.json"

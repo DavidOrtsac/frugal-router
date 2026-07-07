@@ -50,6 +50,7 @@ def main() -> int:
         }
         config = replace(base_config, thresholds=thresholds)
         summary = evaluate(config, local, remote, dev_tasks)
+        summary.pop("_dump", None)
         rows.append({"threshold": threshold, **summary})
         print(f"{threshold:>9.2f} | {summary['accuracy']:>8.2%} | "
               f"{summary['offload_rate']:>7.2%} | {summary['remote_tokens']:>13}")

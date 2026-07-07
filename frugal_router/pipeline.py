@@ -20,7 +20,7 @@ from .config import Config
 from .classify import classify
 from .policy import decide
 from .prompts import extract_answer, system_prompt
-from .schemas import Route, Task, TaskResult
+from .schemas import Category, Route, Task, TaskResult
 
 
 def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
@@ -42,9 +42,12 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
             remote_tokens=0, reason=decision.reason,
         )
 
+    code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
+    remote_budget = (config.remote_max_tokens_code if category in code_categories
+                     else config.remote_max_tokens)
     completion = remote.complete(
         decision.model, system_prompt(category), task.prompt,
-        temperature=0.0, max_tokens=config.remote_max_tokens,
+        temperature=0.0, max_tokens=remote_budget,
     )
     return TaskResult(
         task_id=task.task_id, answer=extract_answer(category, completion.text),
