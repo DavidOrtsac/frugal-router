@@ -1,6 +1,6 @@
-# FrugalRouter
+# TranscendiantRouter
 
-Hybrid token-efficient routing agent for the **AMD Developer Hackathon: ACT II, Track 1**.
+Formerly FrugalRouter. Hybrid token-efficient routing agent for the **AMD Developer Hackathon: ACT II, Track 1**.
 Team: **Transcendiant** (solo, David Alfonso M. Castro).
 
 FrugalRouter completes each task with the fewest scored tokens possible. Local
