@@ -11,8 +11,9 @@
 FROM ubuntu:24.04
 
 ARG LLAMA_TAG=b9910
-# Ungated default (Qwen3-4B). For the Gemma build pass MODEL_URL and HF_TOKEN.
-ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+# Local model chosen by bake-off under the 4GB/2vCPU grading constraints:
+# Qwen3-1.7B Q4_K_M — 77.0% local floor, 14 tok/s on 2 CPU cores.
+ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf
 ARG HF_TOKEN=""
 
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
@@ -31,7 +32,7 @@ RUN mkdir -p /opt/llama-cpu /opt/llama-vulkan \
 RUN mkdir -p /models && \
     curl -sL ${HF_TOKEN:+-H "Authorization: Bearer ${HF_TOKEN}"} \
       -o /models/local.gguf "${MODEL_URL}" && \
-    test "$(stat -c%s /models/local.gguf)" -gt 1000000000
+    test "$(stat -c%s /models/local.gguf)" -gt 500000000
 
 WORKDIR /app
 COPY requirements.txt .
@@ -41,14 +42,19 @@ COPY frugal_router/ frugal_router/
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-# Routing configuration (tuned values baked at build; env overrides win)
-ENV LOCAL_MODEL=local-gguf \
+# Routing configuration (tuned values baked at build; env overrides win).
+# THRESHOLDS_JSON is ladder rung 4 (~86.6% projected, ~12K tokens) from
+# eval/ladder.py on the 227-task benchmark harness.
+ENV LOCAL_MODEL=qwen3-1.7b \
     LOCAL_BASE_URL=http://localhost:8901/v1 \
     INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json \
     TIME_BUDGET_SECONDS=540 \
-    WORKERS=8 \
+    WORKERS=6 \
+    LLAMA_THREADS=2 \
+    LLAMA_SLOTS=4 \
     CONSISTENCY_SAMPLES=5 \
-    CONSISTENCY_SAMPLES_MAX=10
+    CONSISTENCY_SAMPLES_MAX=10 \
+    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 0.2, "factual_knowledge": 1.01, "logical_reasoning": 0.5, "math_reasoning": 0.7, "ner": 1.0, "sentiment_classification": 1.01, "text_summarization": 0.2}'
 
 ENTRYPOINT ["./entrypoint.sh"]

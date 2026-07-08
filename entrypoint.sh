@@ -12,8 +12,8 @@ else
 fi
 
 "$LLAMA_BIN" -m /models/local.gguf --port 8901 \
-  -c "${LLAMA_CTX:-8192}" -np "${LLAMA_SLOTS:-8}" --no-webui \
-  --jinja --reasoning-budget 0 >/tmp/llama.log 2>&1 &
+  -c "${LLAMA_CTX:-8192}" -np "${LLAMA_SLOTS:-4}" -t "${LLAMA_THREADS:-2}" \
+  --no-webui --jinja --reasoning-budget 0 >/tmp/llama.log 2>&1 &
 LLAMA_PID=$!
 
 for i in $(seq 1 50); do

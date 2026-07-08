@@ -33,7 +33,7 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
         # Forced-remote (threshold unreachable): skip local sampling entirely.
         # Used by --remote-only baselines and per-category forced escalation.
         return _escalate(config, remote, task, category,
-                         reason="forced remote (threshold > 1)")
+                         reason="forced remote (threshold > 1)", local=local)
 
     calibration = calibrate_local(
         local, config.local_model, task, category,
@@ -50,26 +50,43 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
         )
 
     return _escalate(config, remote, task, category, reason=decision.reason,
-                     model=decision.model)
+                     model=decision.model,
+                     fallback_answer=calibration.majority_answer)
 
 
 def _escalate(config: Config, remote: ChatClient, task: Task, category: Category,
-              reason: str, model: str = None) -> TaskResult:
+              reason: str, model: str = None, local: ChatClient = None,
+              fallback_answer: str = None) -> TaskResult:
     if model is None:
         preferred = config.remote_by_category.get(category, "gemma-4-31b-it")
         model = resolve_remote_model(config, preferred)
     code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
     remote_budget = (config.remote_max_tokens_code if category in code_categories
                      else config.remote_max_tokens)
-    completion = remote.complete(
-        model, system_prompt(category), task.prompt,
-        temperature=0.0, max_tokens=remote_budget,
-    )
-    return TaskResult(
-        task_id=task.task_id, answer=extract_answer(category, completion.text),
-        category=category, route=Route.REMOTE, model=model,
-        remote_tokens=completion.total_tokens, reason=reason,
-    )
+    try:
+        completion = remote.complete(
+            model, system_prompt(category), task.prompt,
+            temperature=0.0, max_tokens=remote_budget,
+        )
+        return TaskResult(
+            task_id=task.task_id, answer=extract_answer(category, completion.text),
+            category=category, route=Route.REMOTE, model=model,
+            remote_tokens=completion.total_tokens, reason=reason,
+        )
+    except Exception as exc:
+        # A dead remote must never produce an empty answer: fall back to the
+        # local majority answer, or a fresh single local completion.
+        answer = fallback_answer
+        if answer is None and local is not None:
+            completion = local.complete(config.local_model, system_prompt(category),
+                                        task.prompt, temperature=0.0,
+                                        max_tokens=config.local_max_tokens)
+            answer = extract_answer(category, completion.text)
+        return TaskResult(
+            task_id=task.task_id, answer=answer or "",
+            category=category, route=Route.LOCAL, model=config.local_model,
+            remote_tokens=0, reason=f"remote failed ({exc}); local fallback",
+        )
 
 
 def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list) -> list:
