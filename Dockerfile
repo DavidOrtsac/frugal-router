@@ -57,6 +57,7 @@ ENV LOCAL_MODEL=qwen3-1.7b \
     LLAMA_SLOTS=4 \
     CONSISTENCY_SAMPLES=3 \
     CONSISTENCY_SAMPLES_MAX=5 \
-    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 1.01, "logical_reasoning": 1.01, "math_reasoning": 1.01, "ner": 1.01, "sentiment_classification": 1.01, "text_summarization": 0.0}'
+    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 1.01, "logical_reasoning": 1.01, "math_reasoning": 1.01, "ner": 1.01, "sentiment_classification": 1.01, "text_summarization": 0.0}' \
+    REMOTE_MAP_JSON='{"code_debugging": "kimi-k2p7-code", "code_generation": "kimi-k2p7-code", "factual_knowledge": "kimi-k2p7-code", "logical_reasoning": "kimi-k2p7-code", "math_reasoning": "kimi-k2p7-code", "ner": "kimi-k2p7-code", "sentiment_classification": "kimi-k2p7-code", "text_summarization": "kimi-k2p7-code"}'
 
 ENTRYPOINT ["./entrypoint.sh"]
