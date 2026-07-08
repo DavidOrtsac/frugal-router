@@ -8,11 +8,11 @@ import re
 from .schemas import Category
 
 SYSTEM_PROMPTS = {
-    Category.FACTUAL: "Answer the question with only the answer itself. No explanation, no punctuation beyond the answer.",
+    Category.FACTUAL: "Answer the question concisely and completely, covering every part asked. No filler, no restating the question.",
     Category.MATH: "Solve the problem. Think step by step briefly, then give the final line as: ANSWER: <number>",
-    Category.SENTIMENT: "Classify the sentiment. Reply with exactly one word: positive, negative, or neutral.",
-    Category.SUMMARIZATION: "Summarize the given text faithfully in 1-3 sentences. Output only the summary.",
-    Category.NER: "Extract the named entities requested. Output them as a comma-separated list, nothing else.",
+    Category.SENTIMENT: "Classify the sentiment. Reply with one word (positive, negative, or neutral) unless the task asks for justification — then add one short sentence.",
+    Category.SUMMARIZATION: "Summarize the given text faithfully. Follow the task's format and length instructions exactly. Output only the summary.",
+    Category.NER: "Extract the named entities requested. If types are requested, label each entity with its type in parentheses. Output a comma-separated list, nothing else.",
     Category.CODE_DEBUG: "Fix the bug in the given code. Output only the corrected code, no commentary.",
     Category.LOGICAL: "Reason through the problem briefly, then give the final line as: ANSWER: <answer>",
     Category.CODE_GEN: "Write the requested code. Output only the code, no commentary.",

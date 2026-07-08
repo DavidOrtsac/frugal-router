@@ -32,7 +32,8 @@ _LOGIC_WORDS = re.compile(
     r"\b(therefore|deduce|logical|premise|conclusion|implies|syllogism|riddle|puzzle"
     r"|lies?|liars?|truth|guilty|next (number|term)|sequence"
     r"|taller|shorter|older|younger|heavier|lighter|weighs"
-    r"|who (is|wins|finishes)|finishes (before|after|last)"
+    r"|who (is|wins|finishes|owns|has|likes)|finishes (before|after|last)"
+    r"|each (own|owns|has|have|a different)|different (pet|color|house|hat)"
     r"|above the|below the|day of the week|day after tomorrow|answer yes or no)\b", re.I)
 _SYLLOGISM = re.compile(r"\ball \w+s? are\b", re.I)
 

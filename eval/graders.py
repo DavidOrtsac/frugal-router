@@ -48,7 +48,9 @@ def _grade_keywords(answer: str, gold: dict) -> bool:
 
 def _grade_entity_set(answer: str, gold: dict) -> bool:
     expected = {_norm(e) for e in gold["entities"]}
-    found = {_norm(part) for part in re.split(r"[,\n;]", answer) if part.strip()}
+    # Strip "(type)" labels — official practice tasks show typed output is valid.
+    cleaned = re.sub(r"\([^)]*\)", "", answer)
+    found = {_norm(part) for part in re.split(r"[,\n;]", cleaned) if part.strip()}
     if not expected:
         return not found
     tp = len(expected & found)
