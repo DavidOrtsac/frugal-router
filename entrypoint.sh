@@ -2,6 +2,7 @@
 # Boot the local model server (GPU via Vulkan when available, CPU otherwise),
 # wait for health, then run the router. Must be ready well inside 60s.
 set -u
+export CONTAINER_START_TS=$(date +%s)  # the 10-min clock starts NOW
 
 if vulkaninfo --summary >/dev/null 2>&1; then
   LLAMA_BIN=$(find /opt/llama-vulkan -name llama-server | head -1)

@@ -100,7 +100,15 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     """Process tasks concurrently. The local server batches parallel requests
     efficiently, and the scoring time budget is far too small for sequential
     processing. Results keep input order."""
-    started = time.monotonic()
+    # The scoring clock starts at CONTAINER start (model load included), not
+    # at batch start — anchor the budget there when the entrypoint tells us.
+    import os
+    container_start = os.environ.get("CONTAINER_START_TS")
+    already_spent = (time.time() - float(container_start)) if container_start else 0.0
+    started = time.monotonic() - already_spent
+    if already_spent:
+        print(f"[frugal-router] {already_spent:.0f}s spent before batch start",
+              file=sys.stderr)
     done_count = [0]
     degrade_level = [0]  # ratchet: only ever increases
 
