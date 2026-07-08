@@ -55,8 +55,8 @@ ENV LOCAL_MODEL=qwen3-1.7b \
     WORKERS=6 \
     LLAMA_THREADS=2 \
     LLAMA_SLOTS=4 \
-    CONSISTENCY_SAMPLES=5 \
-    CONSISTENCY_SAMPLES_MAX=10 \
+    CONSISTENCY_SAMPLES=3 \
+    CONSISTENCY_SAMPLES_MAX=5 \
     THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 1.01, "logical_reasoning": 0.5, "math_reasoning": 0.7, "ner": 1.0, "sentiment_classification": 1.0, "text_summarization": 0.0}'
 
 ENTRYPOINT ["./entrypoint.sh"]
