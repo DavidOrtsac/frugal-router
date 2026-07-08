@@ -165,3 +165,16 @@ accuracy short of full remote.
 Cheaper rungs (if we pass with margin): raise code_generation from 1.01 to
 0.6, then factual_knowledge from 1.01 to 0.7. Each step saves thousands of
 tokens; validate one step per scoring cycle.
+
+## CONFIRMED: the leaderboard keeps only your LATEST score, not your best
+
+This changes probing discipline:
+- A failed probe REMOVES us from the leaderboard until a passing config is
+  re-pushed and re-scored (roughly one hour per cycle).
+- Therefore: probe cheaper rungs only while at least 4-5 scoring cycles
+  remain before the deadline. One probe, one cycle, read the verdict.
+- FINAL 6 HOURS: push the best rung that has PROVABLY passed, confirm it
+  re-scores as QUALIFIED on the board, then stop touching everything.
+- The very last state before the deadline must be a verified pass. A first
+  place config that was replaced by a failed probe at the buzzer scores
+  nothing.
