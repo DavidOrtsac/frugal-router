@@ -140,3 +140,28 @@ If they give a working Gemma path (say accounts/fireworks/models/gemma-4-31b-it)
 
 If in doubt, prefer HIGHER accuracy over fewer tokens. The accuracy bar is
 secret; being cheap below the bar scores zero.
+
+## Endgame protocol (added Jul 8, after submission)
+
+Submitted. Target to beat: Pahfinder0, 5,121 tokens. Rules of engagement:
+
+1. After each hourly scoring run, check the leaderboard.
+2. If TranscendiantRouter QUALIFIED with a token count: we are on the board.
+   To lower the count, edit THRESHOLDS_JSON in the Dockerfile toward a
+   cheaper ladder rung (see eval/ladder.py output), commit, push, run the
+   GitHub Action (Actions tab > build-submission-image > Run workflow).
+   The judge re-pulls :latest automatically next cycle.
+3. If ACCURACY_GATE_FAILED: move THRESHOLDS_JSON one rung SAFER (more
+   categories at 1.01, lower vote thresholds), rebuild, wait a cycle.
+4. NEVER leave a failing config as the last push before the deadline.
+   When a config passes, keep it until a cheaper one also passes.
+5. Stop all changes 3 hours before the Jul 11, 11 PM PHT deadline.
+   Last known-passing configuration wins.
+
+Safer rung (if gate bites): all eight categories at 1.01 except
+summarization 0.0 and sentiment 1.0. Expensive (~35-40K tokens) but maximum
+accuracy short of full remote.
+
+Cheaper rungs (if we pass with margin): raise code_generation from 1.01 to
+0.6, then factual_knowledge from 1.01 to 0.7. Each step saves thousands of
+tokens; validate one step per scoring cycle.
