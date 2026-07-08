@@ -29,16 +29,23 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
     classification = classify(task)
     category = classification.category
 
-    if config.thresholds.get(category, 0.6) > 1.0:
+    threshold = config.thresholds.get(category, 0.6)
+    if threshold > 1.0:
         # Forced-remote (threshold unreachable): skip local sampling entirely.
         # Used by --remote-only baselines and per-category forced escalation.
         return _escalate(config, remote, task, category,
                          reason="forced remote (threshold > 1)", local=local)
+    if threshold == 0.0:
+        # Always-local category: voting cannot change the decision, so one
+        # greedy sample is enough — a large wall-clock saving on 2 vCPUs.
+        k_initial = k_max = 1
 
+    max_tokens = config.local_max_tokens_by_category.get(
+        category, config.local_max_tokens)
     calibration = calibrate_local(
         local, config.local_model, task, category,
         k_initial=k_initial, k_max=k_max, band=config.adaptive_band,
-        max_tokens=config.local_max_tokens,
+        max_tokens=max_tokens,
     )
     decision = decide(config, category, calibration)
 
@@ -95,11 +102,13 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     processing. Results keep input order."""
     started = time.monotonic()
     done_count = [0]
+    degrade_level = [0]  # ratchet: only ever increases
 
     def _one(index_task):
         i, task = index_task
         k_initial, k_max = _sampling_plan(config, started,
-                                          done=done_count[0], total=len(tasks))
+                                          done=done_count[0], total=len(tasks),
+                                          degrade_level=degrade_level)
         try:
             result = run_task(config, local, remote, task, k_initial, k_max)
         except Exception as exc:  # a failed task must never sink the batch
@@ -124,19 +133,31 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
         return list(pool.map(_one, enumerate(tasks)))
 
 
-def _sampling_plan(config: Config, started: float, done: int, total: int) -> tuple:
-    """Shrink sampling when the projected runtime would blow the time budget."""
-    if done == 0:
-        return config.consistency_samples, config.consistency_samples_max
-    elapsed = time.monotonic() - started
-    projected_total = elapsed / done * total
-    if projected_total <= config.time_budget_seconds * 0.85:
-        return config.consistency_samples, config.consistency_samples_max
-    if projected_total <= config.time_budget_seconds:
+def _sampling_plan(config: Config, started: float, done: int, total: int,
+                   degrade_level: list) -> tuple:
+    """Shrink sampling when the projected runtime would blow the time budget.
+
+    The degrade level is a RATCHET: fast degraded tasks improve the average,
+    but recovering to full sampling would oscillate straight back into
+    timeout territory, so pressure only ever tightens."""
+    if done > 0:
+        elapsed = time.monotonic() - started
+        projected_total = elapsed / done * total
+        if projected_total > config.time_budget_seconds * 0.9:
+            new_level = 2
+        elif projected_total > config.time_budget_seconds * 0.7:
+            new_level = 1
+        else:
+            new_level = 0
+        if new_level > degrade_level[0]:
+            degrade_level[0] = new_level
+            print(f"[frugal-router] time pressure: degrade level {new_level}",
+                  file=sys.stderr)
+    if degrade_level[0] >= 2:
+        return 1, 1
+    if degrade_level[0] == 1:
         return max(3, config.consistency_samples - 2), config.consistency_samples
-    print("[frugal-router] time budget pressure: degrading to single-sample mode",
-          file=sys.stderr)
-    return 1, 1
+    return config.consistency_samples, config.consistency_samples_max
 
 
 def load_tasks(path: str) -> list:

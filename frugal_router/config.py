@@ -58,6 +58,19 @@ class Config:
     consistency_samples_max: int = 10  # adaptive extension for borderline agreement
     adaptive_band: tuple = (0.3, 0.9)  # extend sampling when score falls inside
     local_max_tokens: int = 1024
+    # Per-category local generation caps: on a 2-vCPU grading box the local
+    # token budget is ~10K per 10 min, so every category pays only what its
+    # answer shape needs.
+    local_max_tokens_by_category: dict = field(default_factory=lambda: {
+        Category.FACTUAL: 96,
+        Category.MATH: 400,
+        Category.SENTIMENT: 48,
+        Category.SUMMARIZATION: 200,
+        Category.NER: 96,
+        Category.CODE_DEBUG: 700,
+        Category.LOGICAL: 400,
+        Category.CODE_GEN: 700,
+    })
     remote_max_tokens: int = 512
     remote_max_tokens_code: int = 1600  # reasoning models eat budget before code
     time_budget_seconds: float = 540.0  # scoring budget ~10 min; leave boot margin
