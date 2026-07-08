@@ -117,7 +117,7 @@ def evaluate(config, local, remote, dev_tasks) -> dict:
             "task_id": r.task_id, "category": dev["category"],
             "route": r.route.value, "model": r.model, "correct": ok,
             "remote_tokens": r.remote_tokens, "reason": r.reason,
-            "answer": r.answer[:400],
+            "answer": r.answer,  # FULL answer — truncation broke offline regrading
         })
 
     total = len(results)
