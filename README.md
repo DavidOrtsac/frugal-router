@@ -1,102 +1,104 @@
 # TranscendiantRouter
 
-Formerly FrugalRouter. Hybrid token-efficient routing agent for the **AMD Developer Hackathon: ACT II, Track 1**.
-Team: **Transcendiant** (solo, David Alfonso M. Castro).
+Token-efficient routing agent for the **AMD Developer Hackathon: ACT II, Track 1**.
+Team **Transcendiant**. Built solo by David Alfonso M. Castro.
 
-FrugalRouter completes each task with the fewest scored tokens possible. Local
-tokens are free under Track 1 scoring, so the router keeps everything on a
-self-hosted local model (Gemma 4 26B-A4B via vLLM on AMD ROCm) and escalates to
-a remote model on Fireworks AI only when a calibration signal says the local
-answer is likely wrong.
+TranscendiantRouter answers tasks with a free local model and pays for a
+remote expert only when the local model cannot agree with itself on an answer.
+
+## Why this design
+
+Track 1 scoring has two stages: an accuracy gate, then ranking by fewest
+Fireworks tokens among the submissions that pass. Local tokens count as zero.
+The cheapest reliable way to catch a local model's mistakes is the local model
+itself: sample the same task several times and measure agreement. Agreement
+predicts correctness far better than a model's self-reported confidence, and
+under these rules the measurement is free.
 
 ## How it works
 
 ```
 /input/tasks.json
       |
-      v
-1. classify        rule-based, zero tokens: 8 fixed capability categories
-2. calibrate       k self-consistency samples on the LOCAL model (free);
-                   answer agreement predicts correctness far better than
-                   self-reported confidence
-3. decide          agreement >= per-category threshold -> ship the local
-                   majority answer (0 scored tokens)
-                   agreement <  threshold -> escalate to Fireworks
-4. escalate        terse single-shot prompt, low max_tokens, model chosen
-                   per category (Gemma 4 by default, Kimi K2p7 for code)
+1. classify     rule-based, zero tokens: 8 task categories
+2. vote         Qwen3-1.7B (llama.cpp, weights baked into the image)
+                answers each task 3-5 times; agreement is measured
+3. decide       agreement >= per-category tuned threshold -> ship the
+                free majority answer (0 scored tokens)
+4. escalate     otherwise, that single task goes through the Fireworks
+                proxy: Gemma 4 by default, a code specialist for code
       |
-      v
 /output/results.json
 ```
 
-The escalation thresholds are tuned with the included eval harness against a
-labeled dev set covering all 8 categories.
+## Engineered for the grading environment
 
-## Gemma 4, twice
+- **Image**: ~3GB compressed (limit 10GB), model weights baked in, no
+  downloads at start, boots in seconds (limit 60s).
+- **Hardware fit**: sampling counts, per-category token caps, and thread
+  settings sized for 4GB RAM and 2 vCPUs.
+- **Time**: a ratcheting time guard sheds sampling before the 10-minute limit
+  is at risk. Measured 5m58s end-to-end on a replica grading box.
+- **Robustness**: a failed remote call falls back to a local answer; a task
+  can never return blank; model IDs resolve from `ALLOWED_MODELS` at runtime,
+  so off-list calls are impossible by construction.
+- **Harness contract**: reads `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and
+  `ALLOWED_MODELS` from the environment, exactly as injected at evaluation.
 
-- **Local:** `google/gemma-4-26B-A4B-it` served by vLLM on the AMD GPU pod
-  (MoE, ~4B active params — fast and fits comfortably in 48GB).
-- **Remote:** `gemma-4-31b-it` via Fireworks AI as the default escalation model.
+## Measured results
 
-## Setup
+On a 227-task benchmark harness (GSM8K, HumanEval, and authored tasks across
+all 8 categories) with a held-out split never used for tuning:
+
+- Local-only floor: **77.0%** at 0 tokens.
+- Dress rehearsal on a 4GB/2vCPU replica: **92.5%** held-out accuracy,
+  5m58s, most answers free.
+- Send-everything-remote baseline: ~95% at roughly 8x the token cost.
+
+Thresholds come from recorded runs replayed offline (`eval/frontier.py`,
+`eval/ladder.py`): record the local model once and each expert once, then
+evaluate every threshold combination instantly.
+
+## Run it
 
 ```bash
-git clone https://github.com/DavidOrtsac/frugal-router
-cd frugal-router
+docker pull ghcr.io/davidortsac/frugal-router:latest
+mkdir -p io/input io/output
+cp eval/tasks/practice_tasks.json io/input/tasks.json   # or your own
+docker run --rm --cpus=2 --memory=4g \
+  -v $(pwd)/io/input:/input -v $(pwd)/io/output:/output \
+  -e FIREWORKS_API_KEY=$FIREWORKS_API_KEY \
+  -e FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1 \
+  -e ALLOWED_MODELS=kimi-k2p7-code,gemma-4-31b-it \
+  ghcr.io/davidortsac/frugal-router:latest
+cat io/output/results.json
+```
+
+Build from source: `docker buildx build --platform linux/amd64 -t transcendiantrouter .`
+
+## Develop and evaluate
+
+```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # add your FIREWORKS_API_KEY
+pytest                                   # 30 tests
+python eval/build_devset.py              # assemble the 227-task benchmark
+python eval/run_eval.py --mock           # offline smoke run, no GPU or key
+python eval/run_eval.py --local-only --tasks eval/tasks/train_tasks.json --dump dump_local.json
+python eval/ladder.py --local dump_local.json --remote kimi=dump_kimi.json
 ```
 
-## Run (Docker, as scored)
+`LOCAL_BASE_URL` points at any OpenAI-compatible server (llama.cpp or vLLM).
+All routing levers are environment variables; see `.env.example`.
 
-```bash
-docker build -t frugal-router .
-docker run --rm \
-  -v /path/to/input:/input -v /path/to/output:/output \
-  -e FIREWORKS_API_KEY=$FIREWORKS_API_KEY \
-  --device=/dev/kfd --device=/dev/dri \
-  frugal-router
-```
+## Gemma via Fireworks
 
-The container starts vLLM with the local model, waits for health, reads
-`/input/tasks.json` (`[{task_id, prompt}]`), and writes `/output/results.json`
-(`[{task_id, answer}]`).
-
-For development against an external vLLM server:
-
-```bash
-docker build --build-arg BASE_IMAGE=python:3.12-slim -t frugal-router:dev .
-docker run --rm -v ...:/input -v ...:/output \
-  -e START_LOCAL_VLLM=0 -e LOCAL_BASE_URL=http://host.docker.internal:8000/v1 \
-  -e FIREWORKS_API_KEY=$FIREWORKS_API_KEY frugal-router:dev
-```
-
-## Eval harness
-
-```bash
-python eval/run_eval.py --mock          # offline smoke run, no GPU or API key
-python eval/run_eval.py                 # real endpoints from .env
-python eval/run_eval.py --local-only    # raw local accuracy (routing floor)
-python eval/run_eval.py --remote-only   # remote accuracy + token cost ceiling
-python eval/sweep.py                    # threshold sweep -> frontier table
-```
-
-Reported metrics: `accuracy`, `offload_rate` (fraction answered locally, i.e.
-free), and `remote_tokens` (the scored quantity).
-
-## Tests
-
-```bash
-pytest
-```
-
-## Configuration
-
-All routing levers are environment variables — see `.env.example`. The allowed
-remote model list is enforced in code: the router can never call a model
-outside `ALLOWED_MODELS`.
+Gemma 4 is the default escalation model for six of the eight categories,
+resolved from the runtime `ALLOWED_MODELS` list. Local Gemma was evaluated
+and ruled out honestly: the smallest Gemma 4 checkpoint cannot fit the 4GB
+grading environment alongside an agent. Gemma's role is the remote brain.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. Note: the repository slug and image path retain the project's original
+working name (`frugal-router`); the project is TranscendiantRouter.
