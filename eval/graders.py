@@ -59,7 +59,11 @@ def _grade_entity_set(answer: str, gold: dict) -> bool:
 
 
 def _grade_code(answer: str, gold: dict) -> bool:
-    """Execute candidate code and check test cases.
+    """Execute candidate code in a SANDBOXED subprocess and check test cases.
+
+    Model-generated code can allocate unbounded memory or loop forever, so it
+    never runs in the harness process: a disposable child gets 1GB of address
+    space, 10s of CPU, and a wall-clock timeout. Any violation = wrong answer.
 
     Two gold styles:
     - authored: {"function", "tests": [{"args", "expected"}]}
@@ -67,31 +71,56 @@ def _grade_code(answer: str, gold: dict) -> bool:
       check(candidate) that asserts behavior. context is the original prompt
       (imports + signature) for models that answer with a body-only completion.
     """
-    func, namespace = _load_function(answer, gold)
-    if func is None:
+    import json as json_mod
+    import subprocess
+    import sys
+
+    payload = json_mod.dumps({
+        "answer": answer,
+        "context": gold.get("context", ""),
+        "function": gold["function"],
+        "check_code": gold.get("check_code"),
+        "tests": gold.get("tests", []),
+    })
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", _SANDBOX_RUNNER],
+            input=payload, capture_output=True, text=True, timeout=15,
+        )
+        return proc.stdout.strip().endswith("PASS")
+    except Exception:
         return False
-    if "check_code" in gold:
-        exec(gold["check_code"], namespace)
-        namespace["check"](func)
-        return True
-    for case in gold["tests"]:
-        result = func(*case["args"])
-        if result != case["expected"]:
-            return False
-    return True
 
 
-def _load_function(answer: str, gold: dict):
-    for source in (answer, gold.get("context", "") + "\n" + answer):
-        try:
-            namespace: dict = {}
-            exec(source, namespace)
-            func = namespace.get(gold["function"])
-            if func is not None:
-                return func, namespace
-        except Exception:
+_SANDBOX_RUNNER = r"""
+import json, sys
+try:
+    import resource
+    resource.setrlimit(resource.RLIMIT_AS, (1_000_000_000, 1_000_000_000))
+    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
+except Exception:
+    pass
+payload = json.load(sys.stdin)
+ok = False
+for source in (payload["answer"], payload["context"] + "\n" + payload["answer"]):
+    try:
+        namespace = {}
+        exec(source, namespace)
+        func = namespace.get(payload["function"])
+        if func is None:
             continue
-    return None, {}
+        if payload.get("check_code"):
+            exec(payload["check_code"], namespace)
+            namespace["check"](func)
+            ok = True
+        else:
+            ok = all(func(*case["args"]) == case["expected"]
+                     for case in payload["tests"])
+        break
+    except Exception:
+        continue
+print("PASS" if ok else "FAIL")
+"""
 
 
 _GRADERS = {

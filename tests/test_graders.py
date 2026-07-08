@@ -45,3 +45,18 @@ def test_code_generation_exec():
 def test_code_grader_survives_broken_code():
     gold = {"function": "f", "tests": [{"args": [1], "expected": 1}]}
     assert not grade("code_generation", "this is not python ][", gold)
+
+
+def test_code_grader_survives_memory_bomb():
+    """Model-generated code that allocates without bound must grade False
+    without harming the harness process (the failure mode that OOM-killed a
+    full recording run on 2026-07-08)."""
+    bomb = "def f(x):\n    data = []\n    while True:\n        data.append('x' * 10_000_000)\n    return x"
+    gold = {"function": "f", "tests": [{"args": [1], "expected": 1}]}
+    assert not grade("code_generation", bomb, gold)
+
+
+def test_code_grader_survives_infinite_loop():
+    loop = "def f(x):\n    while True:\n        pass"
+    gold = {"function": "f", "tests": [{"args": [1], "expected": 1}]}
+    assert not grade("code_generation", loop, gold)
