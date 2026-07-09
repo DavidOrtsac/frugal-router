@@ -43,7 +43,7 @@ python3 -c 'import zipfile; zipfile.ZipFile("/workspace/fr.zip").extractall(".")
 printf 'export HF_TOKEN=%s\nexport FIREWORKS_API_KEY=%s\n' \
   'hf_YOUR_HUGGINGFACE_TOKEN' 'fw_YOUR_FIREWORKS_KEY' > /workspace/secrets.env
 chmod 600 /workspace/secrets.env
-/opt/venv/bin/pip install -q openai pytest
+/opt/venv/bin/pip install -q openai pytest websocket-client
 nohup /opt/venv/bin/vllm serve Qwen/Qwen3-1.7B --port 8000 \
   --gpu-memory-utilization 0.90 --max-model-len 8192 > /workspace/vllm.log 2>&1 &
 echo "Model starting. Takes 5-30 min first time. Check with:"
@@ -176,6 +176,33 @@ accuracy short of full remote.
 Cheaper rungs (if we pass with margin): raise code_generation from 1.01 to
 0.6, then factual_knowledge from 1.01 to 0.7. Each step saves thousands of
 tokens; validate one step per scoring cycle.
+
+## Local sharpen pass (Jul 9, while waiting for proxyfix score)
+
+Do not push or rebuild the image until the current `:latest` submission has
+scored. Pushing a tag or manually running the image workflow can overwrite the
+candidate the judge is about to score.
+
+Offline replay from the cached train dumps:
+
+| Config | Train accuracy | Train tokens | Note |
+|---|---:|---:|---|
+| Current safe Docker rung | 178/187 (95.19%) | 56,007 | all Kimi except summary local |
+| Same safety, math threshold 0.7 | 178/187 (95.19%) | 47,446 | first post-qualification cut |
+| Cheapest replay above 84.2% | 158/187 (84.49%) | 7,589 | likely first leaderboard probe after pass |
+| Best replay under 5.5K tokens | 155/187 (82.89%) | 4,905 | probably below gate on train |
+
+Exact first post-qualification safety cut:
+
+```bash
+export THRESHOLDS_JSON='{"code_debugging":1.01,"code_generation":1.01,"factual_knowledge":1.01,"logical_reasoning":1.01,"math_reasoning":0.7,"ner":1.01,"sentiment_classification":1.01,"text_summarization":0.0}'
+```
+
+Exact cheapest cached-train config above the visible 84.2% gate:
+
+```bash
+export THRESHOLDS_JSON='{"code_debugging":1.01,"code_generation":0.2,"factual_knowledge":1.01,"logical_reasoning":0.2,"math_reasoning":0.7,"ner":1.0,"sentiment_classification":1.0,"text_summarization":0.2}'
+```
 
 ## CONFIRMED: the leaderboard keeps only your LATEST score, not your best
 

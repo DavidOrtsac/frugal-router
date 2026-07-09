@@ -7,7 +7,7 @@ from threading import Lock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from frugal_router.config import Config
-from frugal_router.pipeline import _escalate, run_batch
+from frugal_router.pipeline import _escalate, run_batch, write_results
 from frugal_router.schemas import Category, Completion, Task
 
 
@@ -83,3 +83,17 @@ def test_run_batch_caps_remote_concurrency():
     assert len(results) == 6
     assert all(r.remote_tokens == 2 for r in results)
     assert remote.max_active <= 2
+
+
+def test_write_results_creates_output_directory(tmp_path):
+    out = tmp_path / "nested" / "results.json"
+    results = run_batch(
+        replace(Config(), workers=1, thresholds={cat: 0.0 for cat in Category}),
+        ConstantClient("answer"),
+        ConstantClient("remote"),
+        [Task("t1", "What is the capital of Australia?")],
+    )
+
+    write_results(str(out), results)
+
+    assert out.exists()

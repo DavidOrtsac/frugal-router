@@ -28,6 +28,7 @@ def system_prompt(category: Category) -> str:
 
 _THINK_BLOCK = re.compile(r"<think>.*?(?:</think>|$)", re.DOTALL | re.IGNORECASE)
 _ORPHAN_CLOSE = re.compile(r"^\s*</think>\s*", re.IGNORECASE)
+_ANSWER_MARKER = re.compile(r"\banswer\s*:\s*", re.IGNORECASE)
 _FENCED_CODE = re.compile(r"```(?:[a-zA-Z0-9]*)\n(.*?)```", re.DOTALL)
 
 
@@ -40,9 +41,9 @@ def extract_answer(category: Category, text: str) -> str:
     cleaned = _THINK_BLOCK.sub("", text)
     cleaned = _ORPHAN_CLOSE.sub("", cleaned).strip()
     if category in _MARKER_CATEGORIES:
-        marker = cleaned.rfind("ANSWER:")
-        if marker != -1:
-            return cleaned[marker + len("ANSWER:"):].strip()
+        matches = list(_ANSWER_MARKER.finditer(cleaned))
+        if matches:
+            return cleaned[matches[-1].end():].strip()
     if category in (Category.CODE_DEBUG, Category.CODE_GEN):
         fenced = _FENCED_CODE.search(cleaned)
         if fenced:

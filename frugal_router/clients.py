@@ -4,6 +4,8 @@ offline eval harness and threshold sweeps (no GPU, no API key, no cost)."""
 
 import hashlib
 import random
+from collections import defaultdict
+from threading import Lock
 from typing import Protocol
 
 from .schemas import Completion
@@ -109,14 +111,19 @@ class MockClient:
         self._book = dict(answer_book)
         self._accuracy = accuracy
         self._seed = seed
-        self._calls = 0
+        self._sample_counts = defaultdict(int)
+        self._lock = Lock()
 
     def complete(self, model: str, system: str, user: str,
                  temperature: float = 0.0, max_tokens: int = 512) -> Completion:
-        self._calls += 1
+        sample_index = 0
+        if temperature > 0:
+            with self._lock:
+                sample_index = self._sample_counts[user] + 1
+                self._sample_counts[user] += 1
         gold = self._book.get(user, "UNKNOWN")
         stable = int(hashlib.sha256(user.encode()).hexdigest()[:8], 16)
-        rng = random.Random(self._seed + stable + (self._calls if temperature > 0 else 0))
+        rng = random.Random(self._seed + stable + sample_index)
         if rng.random() < self._accuracy:
             text = gold
         else:

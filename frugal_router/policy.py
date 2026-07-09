@@ -14,7 +14,7 @@ model ID that is not on it.
 from .config import Config
 from .schemas import Calibration, Category, Route, RouteDecision
 
-_FALLBACK_PREFERENCE = ("gemma", "kimi", "minimax")
+_FALLBACK_PREFERENCE = ("kimi", "gemma", "minimax")
 
 
 def resolve_remote_model(config: Config, preferred: str) -> str:

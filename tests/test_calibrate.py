@@ -1,8 +1,10 @@
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from frugal_router.clients import MockClient
 from frugal_router.calibrate import calibrate_local, normalize
 from frugal_router.schemas import Category, Completion, Task
 
@@ -57,3 +59,18 @@ def test_borderline_agreement_triggers_extension():
     assert client.calls == 10  # extended
     assert calibration.score == 0.7  # 7 of 10 votes for 6
     assert normalize(Category.MATH, calibration.majority_answer) == "6"
+
+
+def test_mock_client_is_deterministic_under_concurrency():
+    prompts = [f"prompt-{i}" for i in range(20)]
+    book = {p: f"answer-{i}" for i, p in enumerate(prompts)}
+
+    def run_once():
+        client = MockClient(book, accuracy=0.5, seed=123)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            return list(pool.map(
+                lambda p: client.complete("m", "s", p, temperature=0.7).text,
+                prompts,
+            ))
+
+    assert run_once() == run_once()

@@ -53,9 +53,9 @@ def test_resolver_handles_full_path_allowed_list():
     ))
     assert resolve_remote_model(config, "gemma-4-31b-it") == \
         "accounts/fireworks/models/gemma-4-31b-it"
-    # preferred model absent -> falls back to a gemma FROM the list, no invention
+    # preferred model absent -> falls back FROM the list, no invention
     assert resolve_remote_model(config, "minimax-m3") == \
-        "accounts/fireworks/models/gemma-4-31b-it"
+        "accounts/fireworks/models/kimi-k2p7-code"
 
 
 def test_resolver_handles_short_name_allowed_list():
@@ -64,3 +64,14 @@ def test_resolver_handles_short_name_allowed_list():
     # short entries stay short — verbatim, exactly as the harness published them
     assert resolve_remote_model(config, "accounts/fireworks/models/kimi-k2p7-code") == \
         "kimi-k2p7-code"
+
+
+def test_resolver_fallback_prefers_measured_kimi_when_available():
+    from dataclasses import replace
+    from frugal_router.policy import resolve_remote_model
+    config = replace(Config(), allowed_models=(
+        "accounts/fireworks/models/gemma-4-31b-it",
+        "accounts/fireworks/models/kimi-k2p7-code",
+    ))
+    assert resolve_remote_model(config, "missing-model") == \
+        "accounts/fireworks/models/kimi-k2p7-code"

@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from frugal_router.config import config_from_env
+from frugal_router.schemas import Category
 
 
 def test_env_defaults_match_submission_runtime(monkeypatch):
@@ -34,3 +35,14 @@ def test_env_defaults_match_submission_runtime(monkeypatch):
     assert config.remote_attempts == 2
     assert config.remote_max_tokens == 512
     assert config.remote_max_tokens_code == 900
+
+
+def test_env_json_overrides_are_parsed(monkeypatch):
+    monkeypatch.setenv("THRESHOLDS_JSON", '{"math_reasoning": 1.01, "ner": 0.4}')
+    monkeypatch.setenv("REMOTE_MAP_JSON", '{"math_reasoning": "gemma-4-31b-it"}')
+
+    config = config_from_env()
+
+    assert config.thresholds[Category.MATH] == 1.01
+    assert config.thresholds[Category.NER] == 0.4
+    assert config.remote_by_category[Category.MATH] == "gemma-4-31b-it"

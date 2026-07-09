@@ -16,10 +16,12 @@ fi
   -c "${LLAMA_CTX:-8192}" -np "${LLAMA_SLOTS:-4}" -t "${LLAMA_THREADS:-2}" \
   --no-webui --jinja --reasoning-budget 0 >/tmp/llama.log 2>&1 &
 LLAMA_PID=$!
+LLAMA_READY=0
 
 for i in $(seq 1 50); do
   if curl -sf http://localhost:8901/health >/dev/null 2>&1; then
     echo "[entrypoint] local model ready after ~$i checks" >&2
+    LLAMA_READY=1
     break
   fi
   if ! kill -0 "$LLAMA_PID" 2>/dev/null; then
@@ -32,5 +34,10 @@ for i in $(seq 1 50); do
   fi
   sleep 1
 done
+
+if [ "$LLAMA_READY" -ne 1 ]; then
+  echo "[entrypoint] local model not ready before router start; forcing remote-only safety rung" >&2
+  export THRESHOLDS_JSON='{"factual_knowledge":1.01,"math_reasoning":1.01,"sentiment_classification":1.01,"text_summarization":1.01,"ner":1.01,"code_debugging":1.01,"logical_reasoning":1.01,"code_generation":1.01}'
+fi
 
 exec python3 -m frugal_router.main

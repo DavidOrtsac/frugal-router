@@ -11,11 +11,12 @@ ever failing to finish.
 """
 
 import json
+import os
 import sys
 import time
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
-from threading import Semaphore
+from threading import Lock, Semaphore
 
 from .calibrate import calibrate_local
 from .clients import ChatClient
@@ -146,7 +147,6 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     processing. Results keep input order."""
     # The scoring clock starts at CONTAINER start (model load included), not
     # at batch start — anchor the budget there when the entrypoint tells us.
-    import os
     container_start = os.environ.get("CONTAINER_START_TS")
     already_spent = (time.time() - float(container_start)) if container_start else 0.0
     started = time.monotonic() - already_spent
@@ -155,13 +155,15 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
               file=sys.stderr)
     done_count = [0]
     degrade_level = [0]  # ratchet: only ever increases
+    progress_lock = Lock()
     remote_gate = Semaphore(max(1, config.remote_workers))
 
     def _one(index_task):
         i, task = index_task
-        k_initial, k_max = _sampling_plan(config, started,
-                                          done=done_count[0], total=len(tasks),
-                                          degrade_level=degrade_level)
+        with progress_lock:
+            k_initial, k_max = _sampling_plan(config, started,
+                                              done=done_count[0], total=len(tasks),
+                                              degrade_level=degrade_level)
         try:
             result = run_task(config, local, remote, task, k_initial, k_max,
                               remote_gate=remote_gate)
@@ -172,9 +174,11 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                 route=Route.LOCAL, model=config.local_model,
                 remote_tokens=0, reason=f"error: {exc}",
             )
-        done_count[0] += 1
+        with progress_lock:
+            done_count[0] += 1
+            done = done_count[0]
         print(
-            f"[frugal-router] {done_count[0]}/{len(tasks)} {task.task_id} "
+            f"[frugal-router] {done}/{len(tasks)} {task.task_id} "
             f"[{result.category.value}] -> {result.route.value} "
             f"(k={k_initial}..{k_max}, remote_tokens={result.remote_tokens})",
             file=sys.stderr,
@@ -222,6 +226,9 @@ def load_tasks(path: str) -> list:
 
 def write_results(path: str, results: list) -> None:
     payload = [{"task_id": r.task_id, "answer": r.answer} for r in results]
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
