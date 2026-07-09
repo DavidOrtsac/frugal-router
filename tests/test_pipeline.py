@@ -23,6 +23,21 @@ class ConstantClient:
                 for _ in range(n)]
 
 
+class CountingClient(ConstantClient):
+    def __init__(self, text="ok"):
+        super().__init__(text)
+        self.calls = 0
+
+    def complete(self, model, system, user, temperature=0.0, max_tokens=512):
+        self.calls += 1
+        return super().complete(model, system, user, temperature, max_tokens)
+
+
+class ExplodingRemote(ConstantClient):
+    def complete(self, model, system, user, temperature=0.0, max_tokens=512):
+        raise AssertionError("remote should not be called")
+
+
 class RetryableError(Exception):
     status_code = 429
 
@@ -58,7 +73,12 @@ class SlowRemote(ConstantClient):
 
 def test_remote_escalation_retries_quick_proxy_failures():
     remote = FlakyRemote()
-    config = replace(Config(), remote_attempts=2, remote_retry_delay_seconds=0.0)
+    config = replace(
+        Config(),
+        fireworks_api_key="test-key",
+        remote_attempts=2,
+        remote_retry_delay_seconds=0.0,
+    )
 
     result = _escalate(config, remote, Task("t", "What is the capital of Australia?"),
                        Category.FACTUAL, reason="forced")
@@ -73,6 +93,7 @@ def test_run_batch_caps_remote_concurrency():
     remote = SlowRemote()
     config = replace(
         Config(),
+        fireworks_api_key="test-key",
         thresholds={cat: 1.01 for cat in Category},
         workers=6,
         remote_workers=2,
@@ -83,6 +104,25 @@ def test_run_batch_caps_remote_concurrency():
     assert len(results) == 6
     assert all(r.remote_tokens == 2 for r in results)
     assert remote.max_active <= 2
+
+
+def test_missing_fireworks_key_skips_remote_and_uses_local_sampling():
+    local = CountingClient("local-ok")
+    config = replace(Config(), consistency_samples=4, consistency_samples_max=6)
+
+    result = _escalate(
+        config,
+        ExplodingRemote(),
+        Task("t", "What is the capital of Australia?"),
+        Category.FACTUAL,
+        reason="forced",
+        local=local,
+    )
+
+    assert result.answer == "local-ok"
+    assert result.remote_tokens == 0
+    assert "missing FIREWORKS_API_KEY" in result.reason
+    assert local.calls == 4
 
 
 def test_write_results_creates_output_directory(tmp_path):

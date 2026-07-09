@@ -72,6 +72,15 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
     if model is None:
         preferred = config.remote_by_category.get(category, "gemma-4-31b-it")
         model = resolve_remote_model(config, preferred)
+    if not config.fireworks_api_key:
+        return _local_fallback(
+            config, task, category,
+            reason=f"{reason}; missing FIREWORKS_API_KEY",
+            local=local,
+            fallback_answer=fallback_answer,
+            k_initial=config.consistency_samples,
+            k_max=config.consistency_samples_max,
+        )
     code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
     remote_budget = (config.remote_max_tokens_code if category in code_categories
                      else config.remote_max_tokens)
@@ -91,22 +100,36 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
         print(f"[frugal-router] REMOTE CALL FAILED model={model} "
               f"after {elapsed:.1f}s: {exc}",
               file=sys.stderr)
-        # A dead remote must never produce an empty answer: fall back to the
-        # local majority answer, or a fresh local majority vote.
-        answer = fallback_answer
-        if answer is None and local is not None:
-            from .calibrate import calibrate_local
-            max_tokens = config.local_max_tokens_by_category.get(
-                category, config.local_max_tokens)
-            calibration = calibrate_local(
-                local, config.local_model, task, category,
-                k_initial=3, k_max=3, band=(2.0, 2.0), max_tokens=max_tokens)
-            answer = calibration.majority_answer
-        return TaskResult(
-            task_id=task.task_id, answer=answer or "",
-            category=category, route=Route.LOCAL, model=config.local_model,
-            remote_tokens=0, reason=f"remote failed ({exc}); local fallback",
+        return _local_fallback(
+            config, task, category,
+            reason=f"remote failed ({exc})",
+            local=local,
+            fallback_answer=fallback_answer,
+            k_initial=3,
+            k_max=3,
         )
+
+
+def _local_fallback(config: Config, task: Task, category: Category, reason: str,
+                    local: ChatClient = None, fallback_answer: str = None,
+                    k_initial: int = 3, k_max: int = 3) -> TaskResult:
+    # A dead or unavailable remote must never produce an empty answer. Prefer
+    # an already-computed local majority; otherwise do a local vote.
+    answer = fallback_answer
+    if answer is None and local is not None:
+        from .calibrate import calibrate_local
+        max_tokens = config.local_max_tokens_by_category.get(
+            category, config.local_max_tokens)
+        calibration = calibrate_local(
+            local, config.local_model, task, category,
+            k_initial=k_initial, k_max=k_max, band=config.adaptive_band,
+            max_tokens=max_tokens)
+        answer = calibration.majority_answer
+    return TaskResult(
+        task_id=task.task_id, answer=answer or "",
+        category=category, route=Route.LOCAL, model=config.local_model,
+        remote_tokens=0, reason=f"{reason}; local fallback",
+    )
 
 
 def _complete_remote_with_retry(config: Config, remote: ChatClient, remote_gate,
