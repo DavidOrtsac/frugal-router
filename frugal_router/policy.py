@@ -20,26 +20,22 @@ _FALLBACK_PREFERENCE = ("gemma", "kimi", "minimax")
 def resolve_remote_model(config: Config, preferred: str) -> str:
     """Map a preferred model name onto the ALLOWED_MODELS list, safely.
 
-    Handles all list formats: short names ("gemma-4-31b-it") or full IDs
-    ("accounts/fireworks/models/gemma-4-31b-it"). Falls back to a preference
-    order drawn FROM the allowed list itself, so an out-of-list call is
-    impossible by construction.
+    The harness publishes EXACT model IDs and the guide says to use them
+    verbatim — so the matched allowed-list entry is returned character for
+    character, never rewritten, never prefixed. (For local development
+    against api.fireworks.ai directly, put full model paths into your own
+    ALLOWED_MODELS env value.) Fallbacks are drawn FROM the allowed list
+    itself, so an out-of-list call is impossible by construction.
     """
     preferred_short = preferred.rsplit("/", 1)[-1]
     for allowed in config.allowed_models:
         if allowed.rsplit("/", 1)[-1] == preferred_short:
-            return _full_id(config, allowed)
+            return allowed
     for pattern in _FALLBACK_PREFERENCE:
         for allowed in config.allowed_models:
             if pattern in allowed.lower():
-                return _full_id(config, allowed)
-    return _full_id(config, config.allowed_models[0])
-
-
-def _full_id(config: Config, allowed_entry: str) -> str:
-    if "/" in allowed_entry:
-        return allowed_entry
-    return config.remote_model_prefix + allowed_entry
+                return allowed
+    return config.allowed_models[0]
 
 
 def decide(config: Config, category: Category, calibration: Calibration) -> RouteDecision:

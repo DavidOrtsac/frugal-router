@@ -81,14 +81,19 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
             remote_tokens=completion.total_tokens, reason=reason,
         )
     except Exception as exc:
+        print(f"[frugal-router] REMOTE CALL FAILED model={model}: {exc}",
+              file=sys.stderr)
         # A dead remote must never produce an empty answer: fall back to the
-        # local majority answer, or a fresh single local completion.
+        # local majority answer, or a fresh local majority vote.
         answer = fallback_answer
         if answer is None and local is not None:
-            completion = local.complete(config.local_model, system_prompt(category),
-                                        task.prompt, temperature=0.0,
-                                        max_tokens=config.local_max_tokens)
-            answer = extract_answer(category, completion.text)
+            from .calibrate import calibrate_local
+            max_tokens = config.local_max_tokens_by_category.get(
+                category, config.local_max_tokens)
+            calibration = calibrate_local(
+                local, config.local_model, task, category,
+                k_initial=3, k_max=3, band=(2.0, 2.0), max_tokens=max_tokens)
+            answer = calibration.majority_answer
         return TaskResult(
             task_id=task.task_id, answer=answer or "",
             category=category, route=Route.LOCAL, model=config.local_model,

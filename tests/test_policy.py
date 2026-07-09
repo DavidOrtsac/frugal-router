@@ -21,6 +21,8 @@ def test_low_consistency_escalates():
     decision = decide(Config(), Category.MATH, _calibration(0.2))
     assert decision.route == Route.REMOTE
     assert "gemma" in decision.model
+    # allowed-list entries are used VERBATIM — never prefixed or rewritten
+    assert decision.model in Config().allowed_models
 
 
 def test_code_escalates_to_code_model():
@@ -39,8 +41,7 @@ def test_remote_model_always_in_allowed_list():
     for category in Category:
         decision = decide(config, category, _calibration(0.0))
         if decision.route == Route.REMOTE:
-            short = decision.model.removeprefix(config.remote_model_prefix)
-            assert short in config.allowed_models
+            assert decision.model in config.allowed_models
 
 
 def test_resolver_handles_full_path_allowed_list():
@@ -60,5 +61,6 @@ def test_resolver_handles_full_path_allowed_list():
 def test_resolver_handles_short_name_allowed_list():
     from frugal_router.policy import resolve_remote_model
     config = Config()
+    # short entries stay short — verbatim, exactly as the harness published them
     assert resolve_remote_model(config, "accounts/fireworks/models/kimi-k2p7-code") == \
-        "accounts/fireworks/models/kimi-k2p7-code"
+        "kimi-k2p7-code"
