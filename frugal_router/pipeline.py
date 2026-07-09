@@ -13,7 +13,9 @@ ever failing to finish.
 import json
 import sys
 import time
+from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
+from threading import Semaphore
 
 from .calibrate import calibrate_local
 from .clients import ChatClient
@@ -25,7 +27,7 @@ from .schemas import Category, Route, Task, TaskResult
 
 
 def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
-             k_initial: int, k_max: int) -> TaskResult:
+             k_initial: int, k_max: int, remote_gate=None) -> TaskResult:
     classification = classify(task)
     category = classification.category
 
@@ -34,7 +36,8 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
         # Forced-remote (threshold unreachable): skip local sampling entirely.
         # Used by --remote-only baselines and per-category forced escalation.
         return _escalate(config, remote, task, category,
-                         reason="forced remote (threshold > 1)", local=local)
+                         reason="forced remote (threshold > 1)", local=local,
+                         remote_gate=remote_gate)
     if threshold == 0.0:
         # Always-local category: voting cannot change the decision, so one
         # greedy sample is enough — a large wall-clock saving on 2 vCPUs.
@@ -58,30 +61,34 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
 
     return _escalate(config, remote, task, category, reason=decision.reason,
                      model=decision.model,
-                     fallback_answer=calibration.majority_answer)
+                     fallback_answer=calibration.majority_answer,
+                     remote_gate=remote_gate)
 
 
 def _escalate(config: Config, remote: ChatClient, task: Task, category: Category,
               reason: str, model: str = None, local: ChatClient = None,
-              fallback_answer: str = None) -> TaskResult:
+              fallback_answer: str = None, remote_gate=None) -> TaskResult:
     if model is None:
         preferred = config.remote_by_category.get(category, "gemma-4-31b-it")
         model = resolve_remote_model(config, preferred)
     code_categories = (Category.CODE_DEBUG, Category.CODE_GEN)
     remote_budget = (config.remote_max_tokens_code if category in code_categories
                      else config.remote_max_tokens)
+    started = time.monotonic()
     try:
-        completion = remote.complete(
-            model, system_prompt(category), task.prompt,
-            temperature=0.0, max_tokens=remote_budget,
-        )
+        completion = _complete_remote_with_retry(
+            config, remote, remote_gate, model, category, task.prompt, remote_budget)
+        elapsed = time.monotonic() - started
         return TaskResult(
             task_id=task.task_id, answer=extract_answer(category, completion.text),
             category=category, route=Route.REMOTE, model=model,
-            remote_tokens=completion.total_tokens, reason=reason,
+            remote_tokens=completion.total_tokens,
+            reason=f"{reason}; remote {elapsed:.1f}s",
         )
     except Exception as exc:
-        print(f"[frugal-router] REMOTE CALL FAILED model={model}: {exc}",
+        elapsed = time.monotonic() - started
+        print(f"[frugal-router] REMOTE CALL FAILED model={model} "
+              f"after {elapsed:.1f}s: {exc}",
               file=sys.stderr)
         # A dead remote must never produce an empty answer: fall back to the
         # local majority answer, or a fresh local majority vote.
@@ -101,6 +108,38 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
         )
 
 
+def _complete_remote_with_retry(config: Config, remote: ChatClient, remote_gate,
+                                model: str, category: Category, prompt: str,
+                                remote_budget: int):
+    attempts = max(1, config.remote_attempts)
+    gate = remote_gate if remote_gate is not None else nullcontext()
+    last_exc = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with gate:
+                return remote.complete(
+                    model, system_prompt(category), prompt,
+                    temperature=0.0, max_tokens=remote_budget,
+                )
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= attempts or not _retryable_remote_error(exc):
+                raise
+            time.sleep(config.remote_retry_delay_seconds * attempt)
+    raise last_exc
+
+
+def _retryable_remote_error(exc: Exception) -> bool:
+    name = exc.__class__.__name__.lower()
+    if "timeout" in name:
+        return False
+    status = getattr(exc, "status_code", None)
+    response = getattr(exc, "response", None)
+    if status is None and response is not None:
+        status = getattr(response, "status_code", None)
+    return status in (408, 409, 429) or (isinstance(status, int) and status >= 500)
+
+
 def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list) -> list:
     """Process tasks concurrently. The local server batches parallel requests
     efficiently, and the scoring time budget is far too small for sequential
@@ -116,6 +155,7 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
               file=sys.stderr)
     done_count = [0]
     degrade_level = [0]  # ratchet: only ever increases
+    remote_gate = Semaphore(max(1, config.remote_workers))
 
     def _one(index_task):
         i, task = index_task
@@ -123,7 +163,8 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                                           done=done_count[0], total=len(tasks),
                                           degrade_level=degrade_level)
         try:
-            result = run_task(config, local, remote, task, k_initial, k_max)
+            result = run_task(config, local, remote, task, k_initial, k_max,
+                              remote_gate=remote_gate)
         except Exception as exc:  # a failed task must never sink the batch
             print(f"[frugal-router] task {task.task_id} failed: {exc}", file=sys.stderr)
             result = TaskResult(

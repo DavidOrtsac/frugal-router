@@ -20,7 +20,7 @@ def test_high_consistency_stays_local():
 def test_low_consistency_escalates():
     decision = decide(Config(), Category.MATH, _calibration(0.2))
     assert decision.route == Route.REMOTE
-    assert "gemma" in decision.model
+    assert "kimi-k2p7-code" in decision.model
     # allowed-list entries are used VERBATIM — never prefixed or rewritten
     assert decision.model in Config().allowed_models
 

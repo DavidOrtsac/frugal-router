@@ -15,17 +15,17 @@ DEFAULT_ALLOWED_MODELS = (
     "gemma-4-31b-it-nvfp4",
 )
 
-# Which remote model to escalate to, per category. Code-shaped tasks go to the
-# code-specialized model; everything else defaults to Gemma 4 (bonus-eligible).
+# Which remote model to escalate to, per category. The final qualification
+# profile pins every escalation to the measured-best allowed expert.
 DEFAULT_REMOTE_BY_CATEGORY = {
     Category.CODE_DEBUG: "kimi-k2p7-code",
     Category.CODE_GEN: "kimi-k2p7-code",
-    Category.FACTUAL: "gemma-4-31b-it",
-    Category.MATH: "gemma-4-31b-it",
-    Category.SENTIMENT: "gemma-4-31b-it",
-    Category.SUMMARIZATION: "gemma-4-31b-it",
-    Category.NER: "gemma-4-31b-it",
-    Category.LOGICAL: "gemma-4-31b-it",
+    Category.FACTUAL: "kimi-k2p7-code",
+    Category.MATH: "kimi-k2p7-code",
+    Category.SENTIMENT: "kimi-k2p7-code",
+    Category.SUMMARIZATION: "kimi-k2p7-code",
+    Category.NER: "kimi-k2p7-code",
+    Category.LOGICAL: "kimi-k2p7-code",
 }
 
 # Per-category consistency thresholds. Below the threshold → escalate.
@@ -45,17 +45,16 @@ DEFAULT_THRESHOLDS = {
 
 @dataclass(frozen=True)
 class Config:
-    local_base_url: str = "http://localhost:8000/v1"
-    local_model: str = "google/gemma-4-26B-A4B-it"
+    local_base_url: str = "http://localhost:8901/v1"
+    local_model: str = "qwen3-1.7b"
     local_extra_body: dict = field(default_factory=dict)  # e.g. disable Qwen3 thinking
     fireworks_base_url: str = "https://api.fireworks.ai/inference/v1"
     fireworks_api_key: str = ""
-    remote_model_prefix: str = "accounts/fireworks/models/"
     allowed_models: tuple = DEFAULT_ALLOWED_MODELS
     remote_by_category: dict = field(default_factory=lambda: dict(DEFAULT_REMOTE_BY_CATEGORY))
     thresholds: dict = field(default_factory=lambda: dict(DEFAULT_THRESHOLDS))
-    consistency_samples: int = 5
-    consistency_samples_max: int = 10  # adaptive extension for borderline agreement
+    consistency_samples: int = 3
+    consistency_samples_max: int = 5  # adaptive extension for borderline agreement
     adaptive_band: tuple = (0.3, 0.9)  # extend sampling when score falls inside
     local_max_tokens: int = 1024
     # Per-category local generation caps: on a 2-vCPU grading box the local
@@ -72,9 +71,13 @@ class Config:
         Category.CODE_GEN: 700,
     })
     remote_max_tokens: int = 512
-    remote_max_tokens_code: int = 1600  # reasoning models eat budget before code
+    remote_max_tokens_code: int = 900  # stay below the judge's 30s/request cap
+    remote_timeout_seconds: float = 24.0
+    remote_attempts: int = 2  # retry quick 429/5xx proxy failures, not slow timeouts
+    remote_retry_delay_seconds: float = 0.75
+    remote_workers: int = 3  # separate cap so the judge proxy is not stampeded
     time_budget_seconds: float = 540.0  # scoring budget ~10 min; leave boot margin
-    workers: int = 8  # concurrent tasks; local server batches these efficiently
+    workers: int = 6  # concurrent tasks; local server batches these efficiently
     input_path: str = "/input/tasks.json"
     output_path: str = "/output/results.json"
 
@@ -121,14 +124,19 @@ def config_from_env() -> Config:
         local_extra_body=json.loads(os.environ.get("LOCAL_EXTRA_BODY", "{}")),
         fireworks_base_url=os.environ.get("FIREWORKS_BASE_URL", Config.fireworks_base_url),
         fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", ""),
-        remote_model_prefix=os.environ.get("REMOTE_MODEL_PREFIX", Config.remote_model_prefix),
         allowed_models=allowed_models,
         remote_by_category=remote_by_category,
         thresholds=thresholds,
-        consistency_samples=int(os.environ.get("CONSISTENCY_SAMPLES", "5")),
-        consistency_samples_max=int(os.environ.get("CONSISTENCY_SAMPLES_MAX", "10")),
+        consistency_samples=int(os.environ.get("CONSISTENCY_SAMPLES", "3")),
+        consistency_samples_max=int(os.environ.get("CONSISTENCY_SAMPLES_MAX", "5")),
+        remote_max_tokens=int(os.environ.get("REMOTE_MAX_TOKENS", "512")),
+        remote_max_tokens_code=int(os.environ.get("REMOTE_MAX_TOKENS_CODE", "900")),
+        remote_timeout_seconds=float(os.environ.get("REMOTE_TIMEOUT_SECONDS", "24")),
+        remote_attempts=int(os.environ.get("REMOTE_ATTEMPTS", "2")),
+        remote_retry_delay_seconds=float(os.environ.get("REMOTE_RETRY_DELAY_SECONDS", "0.75")),
+        remote_workers=int(os.environ.get("REMOTE_WORKERS", "3")),
         time_budget_seconds=float(os.environ.get("TIME_BUDGET_SECONDS", "540")),
-        workers=int(os.environ.get("WORKERS", "8")),
+        workers=int(os.environ.get("WORKERS", "6")),
         input_path=os.environ.get("INPUT_PATH", Config.input_path),
         output_path=os.environ.get("OUTPUT_PATH", Config.output_path),
     )

@@ -14,7 +14,12 @@ def main() -> int:
     print(f"[frugal-router] loaded {len(tasks)} tasks from {config.input_path}", file=sys.stderr)
 
     local = OpenAICompatClient(config.local_base_url, extra_body=config.local_extra_body)
-    remote = OpenAICompatClient(config.fireworks_base_url, config.fireworks_api_key)
+    remote = OpenAICompatClient(
+        config.fireworks_base_url,
+        config.fireworks_api_key,
+        timeout=config.remote_timeout_seconds,
+        max_retries=0,
+    )
 
     results = run_batch(config, local, remote, tasks)
     write_results(config.output_path, results)

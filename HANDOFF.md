@@ -1,29 +1,37 @@
 # HANDOFF: How To Finish This Alone
 
-Written Jul 8, 2026 for David, in case Claude is gone. Everything here is
-copy-paste. Deadline: submit on lablab.ai before Fri Jul 11, 11:00 PM PHT
-(aim for 6:00 PM).
+Written Jul 8, 2026 for David, in case Claude is gone. Updated Jul 9 after
+the packaging pivot. Deadline: submit on lablab.ai before Fri Jul 11,
+11:00 PM PHT (aim for 6:00 PM).
 
 ## Where things stand
 
-- The router works. Proven numbers on the 187-question practice exam:
-  local-only accuracy 93.6% (Qwen3-14B); first routed run 92.5% accuracy,
-  96.8% answered free, 3,749 remote tokens.
-- Code is on GitHub: github.com/DavidOrtsac/frugal-router (PRIVATE — make it
+- The current shippable image is `Dockerfile`: Qwen3-1.7B Q4_K_M GGUF baked
+  into llama.cpp, 4GB/2vCPU defaults, safe thresholds, Kimi remote map.
+- Local-only floor for this baked model: 77.0% at zero remote tokens. Current
+  safe rung is projected around 89% and intentionally spends more tokens to
+  qualify before probing cheaper rungs.
+- Code is on GitHub: github.com/DavidOrtsac/frugal-router (PRIVATE - make it
   public before submitting: repo Settings > General > Danger Zone > Change
   visibility).
-- Local model decision: Qwen/Qwen3-14B. Gemma cannot run locally on the free
-  pod (its software predates Gemma 4). Gemma's role is REMOTE, once the
-  organizers answer the Discord question about the correct model path.
+- The old GPU/vLLM/Qwen3-14B notes below are historical tuning context. Use
+  the Dockerfile/GitHub Action path for the actual submission image.
+- Jul 9 finding: the public 63.2% score persisted after Kimi and verbatim
+  model-ID fixes, which strongly indicates judge-proxy Fireworks calls were
+  failing and falling back to local answers. Current code now hardens that
+  path with `REMOTE_TIMEOUT_SECONDS=24`, `REMOTE_ATTEMPTS=2`,
+  `REMOTE_WORKERS=3`, and `REMOTE_MAX_TOKENS_CODE=900`.
 
-## Step 0: Restart the GPU machine whenever it expires
+## Step 0: Optional - restart the GPU machine for more tuning
 
-The free notebook dies after some hours. To revive:
+The free notebook dies after some hours. This is only needed if you want to
+run more eval recordings; it is not needed just to rebuild the submission
+image. To revive:
 1. Go to the AMD/AnruiCloud page where you claimed it, claim/start again.
 2. Open the JupyterLab link. Click the dark "Terminal" tile.
 3. Upload the newest `fr.zip` (drag into the file list). Get it from your
    Mac: in Terminal, `cd ~/Desktop/Projects/frugal-router && git archive
-   --format=zip --prefix=frugal-router/ -o ~/Desktop/fr.zip HEAD` — or
+   --format=zip --prefix=frugal-router/ -o ~/Desktop/fr.zip HEAD` - or
    download the repo as zip from GitHub (rename the inner folder to
    `frugal-router`).
 4. Paste into the Jupyter terminal (replace YOUR keys):
@@ -36,7 +44,7 @@ printf 'export HF_TOKEN=%s\nexport FIREWORKS_API_KEY=%s\n' \
   'hf_YOUR_HUGGINGFACE_TOKEN' 'fw_YOUR_FIREWORKS_KEY' > /workspace/secrets.env
 chmod 600 /workspace/secrets.env
 /opt/venv/bin/pip install -q openai pytest
-nohup /opt/venv/bin/vllm serve Qwen/Qwen3-14B --port 8000 \
+nohup /opt/venv/bin/vllm serve Qwen/Qwen3-1.7B --port 8000 \
   --gpu-memory-utilization 0.90 --max-model-len 8192 > /workspace/vllm.log 2>&1 &
 echo "Model starting. Takes 5-30 min first time. Check with:"
 echo "  curl -s http://localhost:8000/health && echo HEALTHY"
@@ -56,14 +64,14 @@ echo "  cat /workspace/day2_status.txt"
 ```
 
 (If day2.sh is missing, it lives in this repo's history / Claude's messages;
-its three runs can also be done by hand — see Step 1b.)
+its three runs can also be done by hand - see Step 1b.)
 
 Step 1b, manual equivalent of the battery:
 
 ```bash
 cd /workspace/frugal-router
 export $(grep -o 'FIREWORKS_API_KEY=.*' /workspace/secrets.env)
-export LOCAL_MODEL=Qwen/Qwen3-14B
+export LOCAL_MODEL=Qwen/Qwen3-1.7B
 export LOCAL_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'
 /opt/venv/bin/python eval/run_eval.py --local-only  --tasks eval/tasks/train_tasks.json --dump /workspace/dump_local.json   > /workspace/eval_L.json
 REMOTE_DEFAULT_MODEL=kimi-k2p7-code /opt/venv/bin/python eval/run_eval.py --remote-only --tasks eval/tasks/train_tasks.json --dump /workspace/dump_kimi.json    > /workspace/eval_RK.json
@@ -84,14 +92,14 @@ export THRESHOLDS_JSON='{"factual_knowledge": 0.8, "math_reasoning": 0.6, "logic
 export REMOTE_MAP_JSON='{"factual_knowledge": "minimax-m3", "code_generation": "kimi-k2p7-code"}'
 ```
 
-(Numbers above are examples — use the frontier table's numbers.)
+(Numbers above are examples - use the frontier table's numbers.)
 
 ## Step 3: Final validation on the held-out questions (run ONCE)
 
 ```bash
 cd /workspace/frugal-router
 export $(grep -o 'FIREWORKS_API_KEY=.*' /workspace/secrets.env)
-export LOCAL_MODEL=Qwen/Qwen3-14B
+export LOCAL_MODEL=Qwen/Qwen3-1.7B
 export LOCAL_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'
 # plus your THRESHOLDS_JSON and REMOTE_MAP_JSON from Step 2
 /opt/venv/bin/python eval/run_eval.py --tasks eval/tasks/heldout_tasks.json --dump /workspace/dump_final.json
@@ -108,9 +116,9 @@ If they give a working Gemma path (say accounts/fireworks/models/gemma-4-31b-it)
    change REMOTE_DEFAULT_MODEL to the Gemma name, dump to dump_gemma.json).
 2. Rerun frontier.py adding: `--remote gemma-4-31b-it=/workspace/dump_gemma.json`
 3. If Gemma wins categories, update REMOTE_MAP_JSON accordingly. The Gemma
-   bonus likes seeing Gemma in the map — prefer it on ties.
-4. If the scoring env's ALLOWED_MODELS uses different full paths, set
-   REMOTE_MODEL_PREFIX accordingly (default "accounts/fireworks/models/").
+   bonus likes seeing Gemma in the map, so prefer it on ties.
+4. Do not prefix model IDs yourself. The resolver now returns the exact
+   ALLOWED_MODELS entry verbatim, short name or full path.
 
 ## Step 5: Package and submit (Friday)
 
@@ -129,9 +137,12 @@ If they give a working Gemma path (say accounts/fireworks/models/gemma-4-31b-it)
 
 | Symptom | Fix |
 |---|---|
-| curl localhost:8000 refuses | model still loading; `tail /workspace/vllm.log` |
-| vLLM crashes on start | `/opt/venv/bin/pip install 'transformers==4.57.6'` then restart (5.x breaks it) |
+| curl localhost:8901 refuses in Docker | llama.cpp still loading or crashed; inspect `/tmp/llama.log` from the container |
+| curl localhost:8000 refuses on optional pod tuning | model still loading; `tail /workspace/vllm.log` |
+| vLLM crashes on optional pod tuning | use the Docker image path unless you are collecting new eval recordings |
 | NOT_FOUND from Fireworks | model name/path wrong; only kimi-k2p7-code and minimax-m3 confirmed working on personal keys |
+| Public score stays around 63% | remote calls are probably still failing in the judge proxy; check Dockerfile proxy levers, rebuild `:latest`, then re-save/await next scoring cycle |
+| Public score improves but still misses gate | move thresholds safer only after confirming remote token count is non-zero |
 | eval crashes mid-run | rerun it; results overwrite cleanly |
 | pod gone again | Step 0 |
 | grader seems wrong on a task | delete that task from the tasks JSON; never tune against a grader you distrust |
@@ -158,8 +169,8 @@ Submitted. Target to beat: Pahfinder0, 5,121 tokens. Rules of engagement:
 5. Stop all changes 3 hours before the Jul 11, 11 PM PHT deadline.
    Last known-passing configuration wins.
 
-Safer rung (if gate bites): all eight categories at 1.01 except
-summarization 0.0 and sentiment 1.0. Expensive (~35-40K tokens) but maximum
+Safer rung (if gate bites): all categories at 1.01 except summarization 0.0.
+Expensive (~35-40K tokens) but maximum
 accuracy short of full remote.
 
 Cheaper rungs (if we pass with margin): raise code_generation from 1.01 to

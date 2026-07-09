@@ -3,8 +3,9 @@
 Token-efficient routing agent for the **AMD Developer Hackathon: ACT II, Track 1**.
 Team **Transcendiant**. Built solo by David Alfonso M. Castro.
 
-TranscendiantRouter answers tasks with a free local model and pays for a
-remote expert only when the local model cannot agree with itself on an answer.
+TranscendiantRouter combines a baked local model with a remote expert ladder:
+qualify safely first, then move down toward fewer Fireworks tokens only after
+the current rung has passed the hidden accuracy gate.
 
 ## Why this design
 
@@ -26,7 +27,7 @@ under these rules the measurement is free.
 3. decide       agreement >= per-category tuned threshold -> ship the
                 free majority answer (0 scored tokens)
 4. escalate     otherwise, that single task goes through the Fireworks
-                proxy: Gemma 4 by default, a code specialist for code
+                proxy: Kimi by default, resolved from ALLOWED_MODELS
       |
 /output/results.json
 ```
@@ -38,10 +39,13 @@ under these rules the measurement is free.
 - **Hardware fit**: sampling counts, per-category token caps, and thread
   settings sized for 4GB RAM and 2 vCPUs.
 - **Time**: a ratcheting time guard sheds sampling before the 10-minute limit
-  is at risk. Measured 5m58s end-to-end on a replica grading box.
+  is at risk. The current safe rung is sized from replica grading runs.
 - **Robustness**: a failed remote call falls back to a local answer; a task
   can never return blank; model IDs resolve from `ALLOWED_MODELS` at runtime,
   so off-list calls are impossible by construction.
+- **Judge proxy hardening**: Fireworks calls use explicit timeouts, one quick
+  retry for proxy 429/5xx responses, capped remote concurrency, and a tighter
+  code-token budget so slow calls fail fast enough for local fallback.
 - **Harness contract**: reads `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and
   `ALLOWED_MODELS` from the environment, exactly as injected at evaluation.
 
@@ -51,9 +55,11 @@ On a 227-task benchmark harness (GSM8K, HumanEval, and authored tasks across
 all 8 categories) with a held-out split never used for tuning:
 
 - Local-only floor: **77.0%** at 0 tokens.
-- Dress rehearsal on a 4GB/2vCPU replica: **92.5%** held-out accuracy,
-  5m58s, most answers free.
-- Send-everything-remote baseline: ~95% at roughly 8x the token cost.
+- Safe shipped rung: forced-remote for every category except summarization,
+  projected around **89%** while finishing inside the 4GB/2vCPU budget.
+- Cheaper ladder rungs are encoded in `eval/ladder.py`; probe them only after
+  the current image is verified as a pass because the leaderboard keeps the
+  latest score, not the best score.
 
 Thresholds come from recorded runs replayed offline (`eval/frontier.py`,
 `eval/ladder.py`): record the local model once and each expert once, then
@@ -81,22 +87,24 @@ Build from source: `docker buildx build --platform linux/amd64 -t transcendiantr
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 30 tests
+pytest                                   # 33 tests
 python eval/build_devset.py              # assemble the 227-task benchmark
 python eval/run_eval.py --mock           # offline smoke run, no GPU or key
 python eval/run_eval.py --local-only --tasks eval/tasks/train_tasks.json --dump dump_local.json
+REMOTE_DEFAULT_MODEL=kimi-k2p7-code python eval/run_eval.py --remote-only --tasks eval/tasks/train_tasks.json --dump dump_kimi.json
 python eval/ladder.py --local dump_local.json --remote kimi=dump_kimi.json
 ```
 
 `LOCAL_BASE_URL` points at any OpenAI-compatible server (llama.cpp or vLLM).
 All routing levers are environment variables; see `.env.example`.
 
-## Gemma via Fireworks
+## Remote Experts
 
-Gemma 4 is the default escalation model for six of the eight categories,
-resolved from the runtime `ALLOWED_MODELS` list. Local Gemma was evaluated
-and ruled out honestly: the smallest Gemma 4 checkpoint cannot fit the 4GB
-grading environment alongside an agent. Gemma's role is the remote brain.
+The qualification image pins escalations to `kimi-k2p7-code`, the measured
+expert available through the allowed list. Gemma remains an allowed-list
+candidate and fallback if the evaluator publishes it, but local Gemma was
+ruled out honestly: the smallest useful checkpoint cannot fit the 4GB grading
+environment alongside the agent.
 
 ## License
 

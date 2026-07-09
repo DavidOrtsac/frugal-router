@@ -1,6 +1,6 @@
-"""Chat clients. Local vLLM and Fireworks are both OpenAI-compatible, so one
-thin wrapper covers both. A deterministic mock client powers the offline eval
-harness and threshold sweeps (no GPU, no API key, no cost)."""
+"""Chat clients. llama.cpp, vLLM, and Fireworks are OpenAI-compatible enough
+for one thin wrapper to cover them. A deterministic mock client powers the
+offline eval harness and threshold sweeps (no GPU, no API key, no cost)."""
 
 import hashlib
 import random
@@ -18,15 +18,22 @@ class ChatClient(Protocol):
 
 
 class OpenAICompatClient:
-    """Wraps any OpenAI-compatible endpoint (vLLM serve, Fireworks).
+    """Wraps any OpenAI-compatible endpoint (llama.cpp, vLLM, Fireworks).
 
     extra_body is forwarded verbatim — used e.g. to disable Qwen3 thinking
     mode via {"chat_template_kwargs": {"enable_thinking": false}}.
     """
 
-    def __init__(self, base_url: str, api_key: str = "EMPTY", extra_body: dict = None):
+    def __init__(self, base_url: str, api_key: str = "EMPTY",
+                 extra_body: dict = None, timeout: float = None,
+                 max_retries: int = None):
         from openai import OpenAI  # lazy import so offline tools need no deps
-        self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY")
+        kwargs = {}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
+        self._client = OpenAI(base_url=base_url, api_key=api_key or "EMPTY", **kwargs)
         self._extra_body = dict(extra_body) if extra_body else None
 
     def _create(self, model: str, system: str, user: str, **kwargs):
@@ -66,9 +73,8 @@ class OpenAICompatClient:
     def complete_many(self, model: str, system: str, user: str,
                       temperature: float = 0.7, n: int = 4,
                       max_tokens: int = 512) -> list:
-        """n sampled completions, in ONE request where the server supports it
-        (vLLM shares prompt computation across choices). Servers that reject
-        or ignore n>1 (llama.cpp) fall back to sequential single calls."""
+        """n sampled completions, in ONE request where the server supports it.
+        Servers that reject or ignore n>1 fall back to sequential calls."""
         try:
             resp = self._create(model, system, user,
                                 temperature=temperature, max_tokens=max_tokens, n=n)
