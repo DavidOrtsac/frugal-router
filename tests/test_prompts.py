@@ -103,3 +103,32 @@ def test_enforce_summary_format_leaves_compliant_answers_alone():
     prompt = "Summarize the passage."
     answer = "The treaty was signed in 1848 and ended the war."
     assert enforce_summary_format(prompt, answer) == answer
+
+
+def test_extract_answer_ignores_echoed_template_marker():
+    # Model echoed the instruction: 'ANSWER: <number>' must not shadow work.
+    # With no valid marker, the complete text survives whole (strict grader
+    # mines the trailing 19; the judge reads it in context).
+    text = "We need the final line as ANSWER: <number>. The sum is 15 + 4 = 19."
+    assert extract_answer(Category.MATH, text) == \
+        "We need the final line as ANSWER: <number>. The sum is 15 + 4 = 19."
+    # And a real marker after an echoed one still wins.
+    text2 = "final line as ANSWER: <number>. Work: 15 + 4.\nANSWER: 19"
+    assert extract_answer(Category.MATH, text2) == "19"
+
+
+def test_has_valid_final_answer_rejects_template_echo():
+    from frugal_router.prompts import has_valid_final_answer
+    assert not has_valid_final_answer(
+        Category.MATH, "final line exactly: ANSWER: <number>. Need to ensure")
+    assert has_valid_final_answer(Category.MATH, "so ANSWER: 42")
+    assert has_valid_final_answer(Category.MATH, "thus \\boxed{42}")
+    assert has_valid_final_answer(Category.LOGICAL, "ANSWER: yes")
+    assert not has_valid_final_answer(Category.LOGICAL, "ANSWER: <answer>")
+
+
+def test_extract_answer_math_babble_mines_number():
+    text = "Need ensure final line exactly. Let's craft concise reasoning."
+    # No numbers at all -> falls through to sentence/cleaned text, non-empty.
+    out = extract_answer(Category.MATH, text)
+    assert out != ""

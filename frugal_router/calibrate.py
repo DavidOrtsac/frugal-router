@@ -14,16 +14,12 @@ import re
 from collections import Counter
 
 from .clients import ChatClient
-from .prompts import _MARKER_CATEGORIES, extract_answer, system_prompt
+from .prompts import (_MARKER_CATEGORIES, extract_answer,
+                      has_valid_final_answer, system_prompt)
 from .schemas import Calibration, Category, Task
 
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 _SENTIMENT_LABELS = ("positive", "negative", "neutral")
-_FINAL_MARKER = re.compile(r"\banswer\s*:|\\boxed\s*\{", re.IGNORECASE)
-
-
-def _has_final_marker(text: str) -> bool:
-    return bool(_FINAL_MARKER.search(text))
 
 
 def calibrate_local(client: ChatClient, model: str, task: Task, category: Category,
@@ -38,7 +34,8 @@ def calibrate_local(client: ChatClient, model: str, task: Task, category: Catego
         # that never reached its explicit final answer (truncated derivation)
         # is exactly the answer worth paying to escalate.
         score = 1.0
-        if category in _MARKER_CATEGORIES and not _has_final_marker(completion.text):
+        if (category in _MARKER_CATEGORIES
+                and not has_valid_final_answer(category, completion.text)):
             score = 0.0
         return Calibration(score=score, majority_answer=answer, samples=(answer,))
 

@@ -62,10 +62,9 @@ def extract_answer(category: Category, text: str) -> str:
         cleaned = _LITERAL_THINK_TAGS.sub("", text).strip()
         salvaged_from_think = True
     if category in _MARKER_CATEGORIES:
-        matches = list(_ANSWER_MARKER.finditer(cleaned))
-        if matches:
-            marked = cleaned[matches[-1].end():].strip()
-            if marked:
+        for match in reversed(list(_ANSWER_MARKER.finditer(cleaned))):
+            marked = cleaned[match.end():].strip()
+            if _valid_marker_payload(category, marked):
                 return marked
         # \boxed{...} is a completed final answer even when the marker (or
         # the closing brace) got cut off by the token budget.
@@ -73,11 +72,11 @@ def extract_answer(category: Category, text: str) -> str:
         if boxed and boxed[-1].strip():
             return boxed[-1].strip()
         truncated = bool(cleaned) and cleaned[-1] not in ".!?\"')]}"
-        if salvaged_from_think or (truncated and category is Category.MATH):
-            # A recovered reasoning trace — or a derivation that ran out of
-            # budget mid-sentence — is a near-certain judge fail as-is;
-            # mining a terse best effort dominates. A COMPLETE marker-less
-            # answer keeps its full text (proven behavior).
+        if salvaged_from_think or truncated:
+            # A recovered or budget-cut reasoning trace is a near-certain
+            # judge fail as-is: mine a terse best effort. A COMPLETE
+            # marker-less answer keeps its full text (proven behavior —
+            # the answer sits in context for both grader styles).
             if category is Category.MATH:
                 numbers = _NUMBER.findall(cleaned)
                 if numbers:
@@ -98,6 +97,29 @@ def extract_answer(category: Category, text: str) -> str:
             return tail[tail.find("\n") + 1:].strip()
         return _strip_code_fences(cleaned)
     return cleaned
+
+
+def has_valid_final_answer(category: Category, text: str) -> bool:
+    """True when the raw completion contains a usable explicit final answer:
+    an ANSWER: marker followed by real content, or a non-empty \\boxed{}.
+    Used as the single-sample confidence signal for marker categories."""
+    cleaned = _LITERAL_THINK_TAGS.sub("", text)
+    for match in _ANSWER_MARKER.finditer(cleaned):
+        if _valid_marker_payload(category, cleaned[match.end():].strip()):
+            return True
+    boxed = _BOXED.findall(cleaned)
+    return bool(boxed and boxed[-1].strip())
+
+
+def _valid_marker_payload(category: Category, payload: str) -> bool:
+    """A marker only counts when real content follows it. Models sometimes
+    echo the instruction template itself ('ANSWER: <number>') — that echoed
+    marker must not shadow the real answer or fake a confidence signal."""
+    if not payload or payload.startswith("<"):
+        return False
+    if category is Category.MATH:
+        return bool(_NUMBER.search(payload[:40]))
+    return True
 
 
 def _strip_code_fences(text: str) -> str:
