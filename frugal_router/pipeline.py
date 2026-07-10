@@ -23,8 +23,15 @@ from .clients import ChatClient
 from .config import Config
 from .classify import classify
 from .policy import decide, resolve_remote_model
-from .prompts import extract_answer, system_prompt
+from .prompts import enforce_summary_format, extract_answer, system_prompt
 from .schemas import Category, Route, Task, TaskResult
+
+
+def _finalize(category: Category, task: Task, answer: str) -> str:
+    """Last-mile answer shaping shared by every route."""
+    if category is Category.SUMMARIZATION and answer:
+        return enforce_summary_format(task.prompt, answer)
+    return answer
 
 
 def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
@@ -56,7 +63,8 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
 
     if decision.route == Route.LOCAL:
         return TaskResult(
-            task_id=task.task_id, answer=calibration.majority_answer,
+            task_id=task.task_id,
+            answer=_finalize(category, task, calibration.majority_answer),
             category=category, route=Route.LOCAL, model=decision.model,
             remote_tokens=0, reason=decision.reason,
         )
@@ -170,7 +178,9 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
         if breaker is not None:
             breaker.record_success()
         return TaskResult(
-            task_id=task.task_id, answer=extract_answer(category, completion.text),
+            task_id=task.task_id,
+            answer=_finalize(category, task,
+                             extract_answer(category, completion.text)),
             category=category, route=Route.REMOTE, model=model,
             remote_tokens=completion.total_tokens,
             reason=f"{reason}; remote {elapsed:.1f}s",
@@ -208,7 +218,7 @@ def _local_fallback(config: Config, task: Task, category: Category, reason: str,
             max_tokens=max_tokens)
         answer = calibration.majority_answer
     return TaskResult(
-        task_id=task.task_id, answer=answer or "",
+        task_id=task.task_id, answer=_finalize(category, task, answer or ""),
         category=category, route=Route.LOCAL, model=config.local_model,
         remote_tokens=0, reason=f"{reason}; local fallback",
     )

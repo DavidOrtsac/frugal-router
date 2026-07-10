@@ -124,7 +124,7 @@ class Config:
         Category.FACTUAL: 96,
         Category.MATH: 300,
         Category.SENTIMENT: 48,
-        Category.SUMMARIZATION: 200,
+        Category.SUMMARIZATION: 256,
         Category.NER: 96,
         Category.CODE_DEBUG: 700,
         Category.LOGICAL: 400,

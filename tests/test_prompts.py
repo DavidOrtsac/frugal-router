@@ -55,3 +55,51 @@ def test_extract_answer_never_empty_on_pure_think_text():
     out = extract_answer(Category.SENTIMENT, text)
     assert out != ""
     assert "positive" in out
+
+
+def test_extract_answer_math_boxed_survives_truncation():
+    # Budget cut the completion mid-\boxed{}: the boxed value IS the answer.
+    text = "Long derivation with 12 and 99 steps... so \\boxed{36"
+    assert extract_answer(Category.MATH, text) == "36"
+
+
+def test_extract_answer_math_truncated_derivation_mines_last_number():
+    # No marker, no boxed, ends mid-sentence -> truncated: mine last number.
+    text = "Step 1: 15 * 4 = 60. Step 2: subtract 3 to get 57 which means"
+    assert extract_answer(Category.MATH, text) == "57"
+
+
+def test_extract_answer_math_complete_text_stays_whole():
+    # Complete sentence, no marker: full text is preserved (proven behavior).
+    text = "The total is 57, found in step 4 of 12."
+    assert extract_answer(Category.MATH, text) == text
+
+
+def test_enforce_summary_format_one_sentence():
+    from frugal_router.prompts import enforce_summary_format
+    prompt = "Summarize the following article in exactly one sentence."
+    answer = "The rover landed. It sent photos. NASA celebrated. More later."
+    assert enforce_summary_format(prompt, answer) == "The rover landed."
+
+
+def test_enforce_summary_format_word_cap():
+    from frugal_router.prompts import enforce_summary_format
+    prompt = "Summarize in no more than 5 words."
+    answer = "The quick brown fox jumps over the lazy dog"
+    out = enforce_summary_format(prompt, answer)
+    assert len(out.rstrip(".").split()) == 5
+
+
+def test_enforce_summary_format_trims_truncated_tail():
+    from frugal_router.prompts import enforce_summary_format
+    prompt = "Summarize the passage."
+    answer = "The treaty was signed in 1848. It ended the war. The final part was abou"
+    assert enforce_summary_format(prompt, answer) == \
+        "The treaty was signed in 1848. It ended the war."
+
+
+def test_enforce_summary_format_leaves_compliant_answers_alone():
+    from frugal_router.prompts import enforce_summary_format
+    prompt = "Summarize the passage."
+    answer = "The treaty was signed in 1848 and ended the war."
+    assert enforce_summary_format(prompt, answer) == answer

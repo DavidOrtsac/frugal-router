@@ -12,8 +12,9 @@ FROM ubuntu:24.04
 
 ARG LLAMA_TAG=b9910
 # Local model chosen by bake-off under the 4GB/2vCPU grading constraints:
-# Qwen3-1.7B Q4_K_M — 77.0% local floor, 14 tok/s on 2 CPU cores.
-ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf
+# Qwen3-4B-Instruct-2507 Q4_K_M — 91.4% local floor on the train set, and
+# VM-rehearsed at 100% strict (40/40) with code+logic escalation in 2m09s.
+ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
 ARG HF_TOKEN=""
 
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
@@ -43,26 +44,27 @@ COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 # Routing configuration (tuned values baked at build; env overrides win).
-# Default THRESHOLDS_JSON: guaranteed-finish profile for the 4GB/2vCPU
-# grading box — code categories forced remote (local code voting cannot fit
-# the 10-min budget on 2 cores), ~89% projected accuracy. Cheaper ladder
-# rungs (eval/ladder.py) ship via resubmission once the gate is located.
-ENV LOCAL_MODEL=qwen3-1.7b \
+# Rung-1 podium profile: Qwen3-4B answers factual/math/sentiment/summary/NER
+# locally at zero cost (its measured-perfect categories); the three
+# code/logic categories are forced remote to kimi. VM-rehearsed under
+# --cpus=2 --memory=4g before every change to this block.
+ENV LOCAL_MODEL=qwen3-4b \
     LOCAL_BASE_URL=http://localhost:8901/v1 \
     INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json \
     TIME_BUDGET_SECONDS=540 \
-    WORKERS=6 \
+    WORKERS=3 \
     REMOTE_WORKERS=3 \
     REMOTE_TIMEOUT_SECONDS=28 \
     REMOTE_ATTEMPTS=2 \
     REMOTE_MAX_TOKENS=768 \
     REMOTE_MAX_TOKENS_CODE=1400 \
     LLAMA_THREADS=2 \
-    LLAMA_SLOTS=4 \
-    CONSISTENCY_SAMPLES=3 \
-    CONSISTENCY_SAMPLES_MAX=5 \
-    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 1.01, "logical_reasoning": 1.01, "math_reasoning": 1.01, "ner": 1.01, "sentiment_classification": 1.01, "text_summarization": 0.0}' \
+    LLAMA_CTX=6144 \
+    LLAMA_SLOTS=2 \
+    CONSISTENCY_SAMPLES=1 \
+    CONSISTENCY_SAMPLES_MAX=1 \
+    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 0.0, "logical_reasoning": 1.01, "math_reasoning": 0.0, "ner": 0.0, "sentiment_classification": 0.0, "text_summarization": 0.0}' \
     REMOTE_MAP_JSON='{"code_debugging": "kimi-k2p7-code", "code_generation": "kimi-k2p7-code", "factual_knowledge": "kimi-k2p7-code", "logical_reasoning": "kimi-k2p7-code", "math_reasoning": "kimi-k2p7-code", "ner": "kimi-k2p7-code", "sentiment_classification": "kimi-k2p7-code", "text_summarization": "kimi-k2p7-code"}'
 
 ENTRYPOINT ["./entrypoint.sh"]
