@@ -289,9 +289,20 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
             k_initial, k_max = _sampling_plan(config, started,
                                               done=done_count[0], total=len(tasks),
                                               degrade_level=degrade_level)
+        emergency = (time.monotonic() - started
+                     > config.time_budget_seconds * 0.92)
         try:
-            result = run_task(config, local, remote, task, k_initial, k_max,
-                              remote_gate=remote_gate, breaker=breaker)
+            if emergency and remote is not None:
+                # The clock is nearly gone: a slow local generation now risks
+                # a TIMEOUT for the whole batch. Remote answers in seconds —
+                # emergency tokens beat an unscored run.
+                category = classify(task).category
+                result = _escalate(config, remote, task, category,
+                                   reason="time emergency", local=local,
+                                   remote_gate=remote_gate, breaker=breaker)
+            else:
+                result = run_task(config, local, remote, task, k_initial, k_max,
+                                  remote_gate=remote_gate, breaker=breaker)
         except Exception as exc:  # a failed task must never sink the batch
             print(f"[frugal-router] task {task.task_id} failed: {exc}", file=sys.stderr)
             result = TaskResult(
