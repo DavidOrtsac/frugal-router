@@ -122,7 +122,7 @@ class Config:
     # answer shape needs.
     local_max_tokens_by_category: dict = field(default_factory=lambda: {
         Category.FACTUAL: 96,
-        Category.MATH: 240,
+        Category.MATH: 300,
         Category.SENTIMENT: 48,
         Category.SUMMARIZATION: 256,
         Category.NER: 96,

@@ -74,3 +74,49 @@ def test_mock_client_is_deterministic_under_concurrency():
             ))
 
     assert run_once() == run_once()
+
+
+def test_single_sample_math_without_marker_scores_zero():
+    from frugal_router.calibrate import calibrate_local
+    from frugal_router.schemas import Category, Task
+
+    class Truncated:
+        def complete(self, model, system, user, temperature=0.0, max_tokens=512):
+            from frugal_router.schemas import Completion
+            return Completion(text="Step 1: 15 * 4 = 60. Step 2: we then",
+                              prompt_tokens=1, completion_tokens=1)
+
+    cal = calibrate_local(Truncated(), "m", Task("t", "p"), Category.MATH,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 0.0  # escalation-worthy
+
+
+def test_single_sample_math_with_marker_scores_one():
+    from frugal_router.calibrate import calibrate_local
+    from frugal_router.schemas import Category, Task
+
+    class Marked:
+        def complete(self, model, system, user, temperature=0.0, max_tokens=512):
+            from frugal_router.schemas import Completion
+            return Completion(text="60 - 3 = 57\nANSWER: 57",
+                              prompt_tokens=1, completion_tokens=1)
+
+    cal = calibrate_local(Marked(), "m", Task("t", "p"), Category.MATH,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 1.0
+    assert cal.majority_answer == "57"
+
+
+def test_single_sample_non_marker_category_unaffected():
+    from frugal_router.calibrate import calibrate_local
+    from frugal_router.schemas import Category, Task
+
+    class Plain:
+        def complete(self, model, system, user, temperature=0.0, max_tokens=512):
+            from frugal_router.schemas import Completion
+            return Completion(text="Canberra is the capital.",
+                              prompt_tokens=1, completion_tokens=1)
+
+    cal = calibrate_local(Plain(), "m", Task("t", "p"), Category.FACTUAL,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 1.0
