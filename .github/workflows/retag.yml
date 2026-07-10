@@ -1,0 +1,31 @@
+name: retag-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Existing image reference (tag or digest) to alias"
+        required: true
+      new_tag:
+        description: "New plain tag to create"
+        required: true
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create alias tag (no rebuild — same digest)
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/davidortsac/frugal-router:${{ github.event.inputs.new_tag }} \
+            ghcr.io/davidortsac/frugal-router:${{ github.event.inputs.source_ref }}
+          docker buildx imagetools inspect ghcr.io/davidortsac/frugal-router:${{ github.event.inputs.new_tag }} | head -5
