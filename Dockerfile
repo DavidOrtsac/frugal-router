@@ -49,10 +49,10 @@ COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 # Routing configuration (tuned values baked at build; env overrides win).
-# Rung-1 podium profile: Qwen3-4B answers factual/math/sentiment/summary/NER
-# locally at zero cost (its measured-perfect categories); the three
-# code/logic categories are forced remote to kimi. VM-rehearsed under
-# --cpus=2 --memory=4g before every change to this block.
+# R-safe profile: Qwen3-4B local for factual/sentiment/summary/NER free;
+# math local with marker-confidence (0.5); code_debugging local with
+# compile-check confidence (0.5); code_generation + logical forced remote.
+# VM-rehearsed under --cpus=2 --memory=4g before every change to this block.
 ENV LOCAL_MODEL=qwen3-4b \
     LOCAL_BASE_URL=http://localhost:8901/v1 \
     INPUT_PATH=/input/tasks.json \
@@ -69,7 +69,7 @@ ENV LOCAL_MODEL=qwen3-4b \
     LLAMA_SLOTS=1 \
     CONSISTENCY_SAMPLES=1 \
     CONSISTENCY_SAMPLES_MAX=1 \
-    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 0.0, "logical_reasoning": 1.01, "math_reasoning": 0.5, "ner": 0.0, "sentiment_classification": 0.0, "text_summarization": 0.0}' \
+    THRESHOLDS_JSON='{"code_debugging": 0.5, "code_generation": 1.01, "factual_knowledge": 0.0, "logical_reasoning": 1.01, "math_reasoning": 0.5, "ner": 0.0, "sentiment_classification": 0.0, "text_summarization": 0.0}' \
     REMOTE_MAP_JSON='{"code_debugging": "kimi-k2p7-code", "code_generation": "kimi-k2p7-code", "factual_knowledge": "kimi-k2p7-code", "logical_reasoning": "kimi-k2p7-code", "math_reasoning": "kimi-k2p7-code", "ner": "kimi-k2p7-code", "sentiment_classification": "kimi-k2p7-code", "text_summarization": "kimi-k2p7-code"}'
 
 ENTRYPOINT ["./entrypoint.sh"]

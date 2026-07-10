@@ -14,8 +14,8 @@ import re
 from collections import Counter
 
 from .clients import ChatClient
-from .prompts import (_MARKER_CATEGORIES, extract_answer,
-                      has_valid_final_answer, system_prompt)
+from .prompts import (_CODE_CATEGORIES, _MARKER_CATEGORIES, extract_answer,
+                      has_valid_final_answer, parses_as_python, system_prompt)
 from .schemas import Calibration, Category, Task
 
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
@@ -36,6 +36,11 @@ def calibrate_local(client: ChatClient, model: str, task: Task, category: Catego
         score = 1.0
         if (category in _MARKER_CATEGORIES
                 and not has_valid_final_answer(category, completion.text)):
+            score = 0.0
+        # Single-sample confidence signal for code categories: an answer that
+        # does not even parse as Python (pure compile-check, never executed)
+        # is exactly the answer worth paying to escalate.
+        elif category in _CODE_CATEGORIES and not parses_as_python(answer):
             score = 0.0
         return Calibration(score=score, majority_answer=answer, samples=(answer,))
 

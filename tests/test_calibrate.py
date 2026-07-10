@@ -120,3 +120,44 @@ def test_single_sample_non_marker_category_unaffected():
     cal = calibrate_local(Plain(), "m", Task("t", "p"), Category.FACTUAL,
                           k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
     assert cal.score == 1.0
+
+
+def test_single_sample_code_gen_valid_python_scores_one():
+    client = ScriptedClient(["```python\ndef add(a, b):\n    return a + b\n```"])
+    cal = calibrate_local(client, "m", Task("t", "p"), Category.CODE_GEN,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 1.0
+    assert cal.majority_answer == "def add(a, b):\n    return a + b"
+
+
+def test_single_sample_code_debug_syntax_error_scores_zero():
+    client = ScriptedClient(["```python\ndef add(a, b:\n    return a + b\n```"])
+    cal = calibrate_local(client, "m", Task("t", "p"), Category.CODE_DEBUG,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 0.0  # escalation-worthy
+
+
+def test_single_sample_code_gen_empty_answer_scores_zero():
+    client = ScriptedClient([""])
+    cal = calibrate_local(client, "m", Task("t", "p"), Category.CODE_GEN,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 0.0
+
+
+def test_single_sample_non_code_category_skips_parse_check():
+    # Prose is not valid Python, but non-code categories must keep score 1.0.
+    client = ScriptedClient(["Paris is the capital of France, not Lyon."])
+    cal = calibrate_local(client, "m", Task("t", "p"), Category.FACTUAL,
+                          k_initial=1, k_max=1, band=(0.3, 0.9), max_tokens=64)
+    assert cal.score == 1.0
+
+
+def test_code_multi_sample_voting_path_ignores_parse_check():
+    # k > 1 uses agreement voting: unanimous non-parsing answers still score
+    # 1.0, proving the compile-check applies only to the single-sample branch.
+    broken = "```python\ndef add(a, b:\n    return a + b\n```"
+    client = ScriptedClient([broken, broken, broken])
+    cal = calibrate_local(client, "m", Task("t", "p"), Category.CODE_GEN,
+                          k_initial=3, k_max=3, band=(0.3, 0.9), max_tokens=64)
+    assert client.calls == 3
+    assert cal.score == 1.0

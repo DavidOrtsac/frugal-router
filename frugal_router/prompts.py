@@ -21,6 +21,9 @@ SYSTEM_PROMPTS = {
 # Categories whose answers end with an "ANSWER:" marker we should extract.
 _MARKER_CATEGORIES = frozenset({Category.MATH, Category.LOGICAL})
 
+# Categories whose answers are code we can parse-check.
+_CODE_CATEGORIES = frozenset({Category.CODE_DEBUG, Category.CODE_GEN})
+
 
 def system_prompt(category: Category) -> str:
     return SYSTEM_PROMPTS[category]
@@ -109,6 +112,22 @@ def has_valid_final_answer(category: Category, text: str) -> bool:
             return True
     boxed = _BOXED.findall(cleaned)
     return bool(boxed and boxed[-1].strip())
+
+
+def parses_as_python(code: str) -> bool:
+    """True when the code parses as Python — a pure syntax check via
+    compile(); the code is NEVER executed. Used as the single-sample
+    confidence signal for code categories: an empty or non-parsing answer
+    (truncated, commentary-wrapped, or non-Python) is exactly the answer
+    worth paying to escalate."""
+    if not code.strip():
+        return False
+    try:
+        compile(code, "<answer>", "exec")
+    except (SyntaxError, ValueError):
+        # ValueError covers source with null bytes — also escalation-worthy.
+        return False
+    return True
 
 
 def _valid_marker_payload(category: Category, payload: str) -> bool:

@@ -291,25 +291,38 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                                               degrade_level=degrade_level)
         emergency = (time.monotonic() - started
                      > config.time_budget_seconds * 0.92)
-        try:
+
+        def _attempt(k_lo, k_hi):
             if emergency and remote is not None:
                 # The clock is nearly gone: a slow local generation now risks
                 # a TIMEOUT for the whole batch. Remote answers in seconds —
                 # emergency tokens beat an unscored run.
                 category = classify(task).category
-                result = _escalate(config, remote, task, category,
-                                   reason="time emergency", local=local,
-                                   remote_gate=remote_gate, breaker=breaker)
-            else:
-                result = run_task(config, local, remote, task, k_initial, k_max,
-                                  remote_gate=remote_gate, breaker=breaker)
+                return _escalate(config, remote, task, category,
+                                 reason="time emergency", local=local,
+                                 remote_gate=remote_gate, breaker=breaker)
+            return run_task(config, local, remote, task, k_lo, k_hi,
+                            remote_gate=remote_gate, breaker=breaker)
+
+        try:
+            result = _attempt(k_initial, k_max)
         except Exception as exc:  # a failed task must never sink the batch
-            print(f"[frugal-router] task {task.task_id} failed: {exc}", file=sys.stderr)
-            result = TaskResult(
-                task_id=task.task_id, answer="", category=classify(task).category,
-                route=Route.LOCAL, model=config.local_model,
-                remote_tokens=0, reason=f"error: {exc}",
-            )
+            # An empty answer is a guaranteed miss; a transient connection
+            # blip usually is not. One paced retry converts those.
+            print(f"[frugal-router] task {task.task_id} failed: {exc} — "
+                  f"retrying once", file=sys.stderr)
+            time.sleep(3.0)
+            try:
+                result = _attempt(1, 1)
+            except Exception as exc2:
+                print(f"[frugal-router] task {task.task_id} failed twice: "
+                      f"{exc2}", file=sys.stderr)
+                result = TaskResult(
+                    task_id=task.task_id, answer="",
+                    category=classify(task).category,
+                    route=Route.LOCAL, model=config.local_model,
+                    remote_tokens=0, reason=f"error: {exc2}",
+                )
         with progress_lock:
             done_count[0] += 1
             done = done_count[0]
