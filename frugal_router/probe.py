@@ -129,47 +129,15 @@ def _probe_once(client, base: str, model: str, key: str, headers: dict):
     return False, response.status_code, None
 
 
-def bootstrap_remote(config, budget_seconds: float = 75.0) -> RemoteRuntime:
-    """Find a working (base URL, key, transport, auth, model id) combination.
-
-    Phase 1 sweeps for ANY working channel using the top-preference model's
-    forms. Phase 2 resolves every distinct model the routing table can emit
-    through the pinned channel, demoting unresolvable models to the next
-    preference that answers."""
-    import httpx
-
-    started = time.monotonic()
-    bases = base_url_variants(config.fireworks_base_url)
-    keys = key_candidates(config.fireworks_api_key)
-    raw_tokens = getattr(config, "allowed_models_raw", ()) or ()
-    candidates = ordered_model_candidates(config.allowed_models, raw_tokens)
-
-    _log(f"base={config.fireworks_base_url!r} variants={bases}")
-    _log(f"key_present={bool(config.fireworks_api_key)} "
-         f"key_len={len(config.fireworks_api_key or '')} key_candidates={len(keys)}")
-    _log(f"allowed={list(config.allowed_models)} raw_extra={list(raw_tokens)}")
-
-    if not bases or not candidates:
-        _log("probe=ALL_FAILED (no base URL or no model candidates)")
-        return RemoteRuntime(ok=False, note="no base or candidates")
-
-    channel = None
-    channel_model = None
-    # Sweep with EVERY distinct allowed model, not just the favorite: a proxy
-    # where only one obscure model answers must never read as "no channel".
-    # Budget checks bound the worst case; a working channel answers early.
-    probe_forms = []
-    seen_shorts = set()
-    for token in candidates:
-        short = token.rsplit("/", 1)[-1]
-        if short in seen_shorts:
-            continue
-        seen_shorts.add(short)
-        probe_forms.extend(model_id_forms(token))
-    probe_forms = list(dict.fromkeys(probe_forms))
+def _channel_sweep(httpx, bases: list, keys: list, probe_forms: list,
+                   started: float, budget_seconds: float):
+    """One full sweep over (base x transport x key x auth x model form).
+    Returns (channel_dict, working_model) or (None, None)."""
     transports = [{"verify": True, "trust_env": True}]
     auth_shapes = [{}]
     expanded = {"auth": False, "ssl": False, "proxy": False}
+    channel = None
+    channel_model = None
 
     queue = [(b, 0, k) for b in bases for k in keys]
     index = 0
@@ -241,6 +209,64 @@ def bootstrap_remote(config, budget_seconds: float = 75.0) -> RemoteRuntime:
                                 break
                 if channel:
                     break
+    return channel, channel_model
+
+
+def bootstrap_remote(config, budget_seconds: float = 110.0,
+                     sweep_retries: int = 2,
+                     retry_delay_seconds: float = 15.0) -> RemoteRuntime:
+    """Find a working (base URL, key, transport, auth, model id) combination.
+
+    Phase 1 sweeps for ANY working channel using the top-preference model's
+    forms — and RETRIES the whole sweep after a delay when nothing answers,
+    because a metering proxy having a bad 30 seconds at container boot must
+    not doom the entire run. Phase 2 resolves every distinct model the
+    routing table can emit through the pinned channel, demoting unresolvable
+    models to the next preference that answers."""
+    import httpx
+
+    started = time.monotonic()
+    bases = base_url_variants(config.fireworks_base_url)
+    keys = key_candidates(config.fireworks_api_key)
+    raw_tokens = getattr(config, "allowed_models_raw", ()) or ()
+    candidates = ordered_model_candidates(config.allowed_models, raw_tokens)
+
+    _log(f"base={config.fireworks_base_url!r} variants={bases}")
+    _log(f"key_present={bool(config.fireworks_api_key)} "
+         f"key_len={len(config.fireworks_api_key or '')} key_candidates={len(keys)}")
+    _log(f"allowed={list(config.allowed_models)} raw_extra={list(raw_tokens)}")
+
+    if not bases or not candidates:
+        _log("probe=ALL_FAILED (no base URL or no model candidates)")
+        return RemoteRuntime(ok=False, note="no base or candidates")
+
+    channel = None
+    channel_model = None
+    # Sweep with EVERY distinct allowed model, not just the favorite: a proxy
+    # where only one obscure model answers must never read as "no channel".
+    # Budget checks bound the worst case; a working channel answers early.
+    probe_forms = []
+    seen_shorts = set()
+    for token in candidates:
+        short = token.rsplit("/", 1)[-1]
+        if short in seen_shorts:
+            continue
+        seen_shorts.add(short)
+        probe_forms.extend(model_id_forms(token))
+    probe_forms = list(dict.fromkeys(probe_forms))
+
+    for sweep_attempt in range(1, sweep_retries + 2):
+        channel, channel_model = _channel_sweep(
+            httpx, bases, keys, probe_forms, started, budget_seconds)
+        if channel is not None:
+            break
+        if (sweep_attempt <= sweep_retries
+                and time.monotonic() - started + retry_delay_seconds < budget_seconds):
+            _log(f"sweep {sweep_attempt} found no channel — retrying in "
+                 f"{retry_delay_seconds:.0f}s (transient proxy outage guard)")
+            time.sleep(retry_delay_seconds)
+        else:
+            break
 
     if channel is None:
         _log("probe=ALL_FAILED — router will run local-only")

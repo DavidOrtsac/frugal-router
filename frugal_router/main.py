@@ -13,14 +13,33 @@ from .probe import bootstrap_remote
 def _build_remote(config):
     """Probe the judge environment and pin a verified remote channel.
 
-    Returns (possibly rewritten) config plus a remote client, or None when no
-    combination answers — the pipeline then runs local-only, which is exactly
-    the pre-probe behavior, never worse."""
+    When NOTHING answers, return a sanitized BEST-GUESS client instead of
+    surrendering: per-call failures fall back to local answers and the
+    circuit breaker's half-open cycle rediscovers the proxy if it recovers
+    mid-run — strictly better than local-flooring the whole batch because
+    of a bad minute at boot. Only a missing base URL yields remote=None."""
     runtime = bootstrap_remote(config)
-    if not runtime.ok:
-        return config, None
-
     import httpx
+    if not runtime.ok:
+        from .probe import base_url_variants
+        bases = base_url_variants(config.fireworks_base_url)
+        if not bases or not config.allowed_models:
+            return config, None
+        from .policy import resolve_remote_model
+        best_guess_model = resolve_remote_model(
+            config, next(iter(config.remote_by_category.values()), "kimi"))
+        print(f"[frugal-router] probe found no channel — arming BEST-GUESS "
+              f"remote base={bases[0]} model={best_guess_model}; breaker "
+              f"half-open will retry as the run proceeds", file=sys.stderr)
+        remote = OpenAICompatClient(
+            bases[0],
+            config.fireworks_api_key or "EMPTY",
+            timeout=config.remote_timeout_seconds,
+            max_retries=0,
+            http_client=httpx.Client(trust_env=True,
+                                     timeout=config.remote_timeout_seconds),
+        )
+        return replace(config, fireworks_base_url=bases[0]), remote
     http_client = httpx.Client(
         verify=runtime.verify,
         trust_env=runtime.trust_env,

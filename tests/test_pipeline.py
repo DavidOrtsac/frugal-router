@@ -202,3 +202,38 @@ def test_write_results_creates_output_directory(tmp_path):
     write_results(str(out), results)
 
     assert out.exists()
+
+
+def test_execution_order_locals_first_forced_remote_last():
+    from frugal_router.pipeline import _execution_order
+    from frugal_router.schemas import Category
+
+    config = replace(Config(), thresholds={
+        Category.FACTUAL: 0.0, Category.MATH: 0.5, Category.CODE_GEN: 1.01,
+        Category.SENTIMENT: 0.0, Category.SUMMARIZATION: 0.0,
+        Category.NER: 0.0, Category.CODE_DEBUG: 1.01, Category.LOGICAL: 1.01,
+    })
+    tasks = [
+        Task("code", "Write a python function that adds two numbers."),
+        Task("fact", "What is the capital of Australia?"),
+        Task("math", "What is 15 * 4 - 3? Show your work."),
+    ]
+    ordered_ids = [t.task_id for _, t in _execution_order(config, tasks)]
+    assert ordered_ids.index("fact") < ordered_ids.index("math") < ordered_ids.index("code")
+
+
+def test_run_batch_preserves_input_order_despite_reordering():
+    tasks = [
+        Task("t0", "Write a python function that adds two numbers."),
+        Task("t1", "What is the capital of Australia?"),
+        Task("t2", "Classify the sentiment: I love this product."),
+    ]
+    config = replace(
+        Config(),
+        fireworks_api_key="test-key",
+        thresholds={cat: (1.01 if cat in (Category.CODE_GEN, Category.CODE_DEBUG)
+                          else 0.0) for cat in Category},
+        workers=2,
+    )
+    results = run_batch(config, ConstantClient("local"), ConstantClient("remote"), tasks)
+    assert [r.task_id for r in results] == ["t0", "t1", "t2"]

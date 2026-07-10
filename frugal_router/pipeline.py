@@ -321,10 +321,30 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
         )
         return result
 
+    # Local-first execution order: free local tasks run while a possibly
+    # flaky proxy gets minutes to recover; remote-needing tasks go last.
+    # Output order is restored afterwards — the contract sees input order.
+    ordered = _execution_order(config, tasks)
     if config.workers <= 1:
-        return [_one(pair) for pair in enumerate(tasks)]
-    with ThreadPoolExecutor(max_workers=config.workers) as pool:
-        return list(pool.map(_one, enumerate(tasks)))
+        computed = [(i, _one((i, task))) for i, task in ordered]
+    else:
+        with ThreadPoolExecutor(max_workers=config.workers) as pool:
+            results = list(pool.map(_one, ordered))
+        computed = [(pair[0], result) for pair, result in zip(ordered, results)]
+    return [result for _, result in sorted(computed, key=lambda item: item[0])]
+
+
+def _execution_order(config: Config, tasks: list) -> list:
+    """(index, task) pairs sorted: always-local categories first, marker-
+    confidence categories next, forced-remote last. Stable within a class."""
+    def escalation_class(task: Task) -> int:
+        threshold = config.thresholds.get(classify(task).category, 0.6)
+        if threshold == 0.0:
+            return 0
+        if threshold > 1.0:
+            return 2
+        return 1
+    return sorted(enumerate(tasks), key=lambda pair: (escalation_class(pair[1]), pair[0]))
 
 
 def _sampling_plan(config: Config, started: float, done: int, total: int,

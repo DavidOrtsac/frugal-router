@@ -198,13 +198,29 @@ def test_preferred_model_down_probe_demotes_to_working_model(judge_env):
         proxy.shutdown()
 
 
-def test_everything_dead_returns_none_for_local_only_mode(judge_env):
+def test_everything_dead_arms_best_guess_with_graceful_fallback(judge_env, monkeypatch):
+    # A dead proxy at boot no longer yields remote=None: a best-guess client
+    # is armed (the breaker's half-open cycle can rediscover a recovering
+    # proxy mid-run), and a failed escalation still falls back local.
+    import frugal_router.main as main_mod
+    from frugal_router.probe import bootstrap_remote as original_bootstrap
+    monkeypatch.setattr(
+        main_mod, "bootstrap_remote",
+        lambda config, **kw: original_bootstrap(
+            config, budget_seconds=10.0, sweep_retries=0))
     proxy = MockJudgeProxy(serve_path="/nowhere",
                            accepted_models=())
     try:
         config = judge_env(proxy.host, "kimi-k2p7-code")
         config, remote = _build_remote(config)
-        assert remote is None
+        assert remote is not None
+        result = _escalate(config, remote,
+                           Task("t1", "What is the capital of Australia?"),
+                           Category.FACTUAL, reason="test",
+                           fallback_answer="local-answer")
+        assert result.answer == "local-answer"
+        assert result.remote_tokens == 0
+        assert result.route.value == "local"
     finally:
         proxy.shutdown()
 
