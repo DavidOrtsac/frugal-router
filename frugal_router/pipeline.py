@@ -258,6 +258,10 @@ def _retryable_remote_error(exc: Exception) -> bool:
     name = exc.__class__.__name__.lower()
     if "timeout" in name:
         return False
+    # Connection-class errors carry no HTTP status but are the signature of
+    # a flapping proxy — precisely the failures worth retrying.
+    if "connect" in name:
+        return True
     status = getattr(exc, "status_code", None)
     response = getattr(exc, "response", None)
     if status is None and response is not None:

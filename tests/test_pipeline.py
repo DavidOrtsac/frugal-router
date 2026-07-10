@@ -237,3 +237,16 @@ def test_run_batch_preserves_input_order_despite_reordering():
     )
     results = run_batch(config, ConstantClient("local"), ConstantClient("remote"), tasks)
     assert [r.task_id for r in results] == ["t0", "t1", "t2"]
+
+
+def test_connection_errors_are_retryable():
+    from frugal_router.pipeline import _retryable_remote_error
+
+    class APIConnectionError(Exception):
+        pass
+
+    class ReadTimeoutError(Exception):
+        pass
+
+    assert _retryable_remote_error(APIConnectionError("boom"))
+    assert not _retryable_remote_error(ReadTimeoutError("slow"))
