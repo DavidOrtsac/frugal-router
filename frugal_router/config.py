@@ -8,11 +8,11 @@ from dataclasses import dataclass, field
 from .schemas import Category
 
 DEFAULT_ALLOWED_MODELS = (
-    "minimax-m3",
-    "kimi-k2p7-code",
-    "gemma-4-31b-it",
-    "gemma-4-26b-a4b-it",
-    "gemma-4-31b-it-nvfp4",
+    "accounts/fireworks/models/minimax-m3",
+    "accounts/fireworks/models/kimi-k2p7-code",
+    "accounts/fireworks/models/gemma-4-31b-it",
+    "accounts/fireworks/models/gemma-4-26b-a4b-it",
+    "accounts/fireworks/models/gemma-4-31b-it-nvfp4",
 )
 
 # Which remote model to escalate to, per category. The final qualification

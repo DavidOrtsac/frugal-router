@@ -20,15 +20,14 @@ def test_high_consistency_stays_local():
 def test_low_consistency_escalates():
     decision = decide(Config(), Category.MATH, _calibration(0.2))
     assert decision.route == Route.REMOTE
-    assert "kimi-k2p7-code" in decision.model
-    # allowed-list entries are used VERBATIM — never prefixed or rewritten
+    assert decision.model == "accounts/fireworks/models/kimi-k2p7-code"
     assert decision.model in Config().allowed_models
 
 
 def test_code_escalates_to_code_model():
     decision = decide(Config(), Category.CODE_GEN, _calibration(0.0))
     assert decision.route == Route.REMOTE
-    assert "kimi-k2p7-code" in decision.model
+    assert decision.model == "accounts/fireworks/models/kimi-k2p7-code"
 
 
 def test_freeform_never_escalates():
@@ -59,9 +58,22 @@ def test_resolver_handles_full_path_allowed_list():
 
 
 def test_resolver_handles_short_name_allowed_list():
+    from dataclasses import replace
     from frugal_router.policy import resolve_remote_model
-    config = Config()
-    # short entries stay short — verbatim, exactly as the harness published them
+    config = replace(Config(), allowed_models=("kimi-k2p7-code",))
+    # Direct Fireworks 404s on short aliases, so canonicalize them.
+    assert resolve_remote_model(config, "accounts/fireworks/models/kimi-k2p7-code") == \
+        "accounts/fireworks/models/kimi-k2p7-code"
+
+
+def test_resolver_preserves_short_alias_for_custom_proxy():
+    from dataclasses import replace
+    from frugal_router.policy import resolve_remote_model
+    config = replace(
+        Config(),
+        fireworks_base_url="https://judge-proxy.example/v1",
+        allowed_models=("kimi-k2p7-code",),
+    )
     assert resolve_remote_model(config, "accounts/fireworks/models/kimi-k2p7-code") == \
         "kimi-k2p7-code"
 
