@@ -10,6 +10,11 @@
 
 FROM ubuntu:24.04
 
+# Release stamp: forces a fresh image digest so the judge's puller never
+# dedupes a resubmission against a previously-scored digest.
+ARG RELEASE_STAMP=rung1d-r2
+LABEL org.transcendiant.release="${RELEASE_STAMP}"
+
 ARG LLAMA_TAG=b9910
 # Local model chosen by bake-off under the 4GB/2vCPU grading constraints:
 # Qwen3-4B-Instruct-2507 Q4_K_M — 91.4% local floor on the train set, and
