@@ -5,10 +5,11 @@ likely below the accuracy bar. Freeform categories (summarization, sentiment)
 have threshold 0.0 — agreement sampling is meaningless there, and the local
 model handles them well, so they never escalate on consistency.
 
-Model resolution: Fireworks direct API needs full
-accounts/fireworks/models/... IDs, while a judge proxy may publish short
-aliases in ALLOWED_MODELS. Resolve preferred models against ALLOWED_MODELS,
-then canonicalize short aliases only when talking to Fireworks directly.
+Model resolution: entries in config.allowed_models are returned VERBATIM.
+At container start the probe (probe.py) has already verified every entry
+against the live endpoint and rewritten config.allowed_models /
+remote_by_category to the exact IDs that answered — so no heuristic
+rewriting belongs here. An out-of-list ID is impossible by construction.
 """
 
 from .config import Config
@@ -18,29 +19,21 @@ _FALLBACK_PREFERENCE = ("kimi", "gemma", "minimax")
 
 
 def resolve_remote_model(config: Config, preferred: str) -> str:
-    """Map a preferred model name onto the ALLOWED_MODELS list, safely.
+    """Map a preferred model name onto the allowed list, verbatim.
 
-    Fallbacks are drawn FROM the allowed list itself. If the target endpoint is
-    direct Fireworks and the allowed entry is a short alias, convert it to the
-    canonical Fireworks path; short IDs 404 on the public Fireworks API.
-    """
+    Matched entries are returned character for character — never rewritten,
+    never prefixed (the startup probe already established the exact working
+    form). Fallbacks are drawn FROM the allowed list itself, so an
+    out-of-list call is impossible by construction."""
     preferred_short = preferred.rsplit("/", 1)[-1]
     for allowed in config.allowed_models:
         if allowed.rsplit("/", 1)[-1] == preferred_short:
-            return _canonical_model_id(config, allowed)
+            return allowed
     for pattern in _FALLBACK_PREFERENCE:
         for allowed in config.allowed_models:
             if pattern in allowed.lower():
-                return _canonical_model_id(config, allowed)
-    return _canonical_model_id(config, config.allowed_models[0])
-
-
-def _canonical_model_id(config: Config, model: str) -> str:
-    if "/" in model:
-        return model
-    if "api.fireworks.ai" in config.fireworks_base_url:
-        return f"accounts/fireworks/models/{model}"
-    return model
+                return allowed
+    return config.allowed_models[0]
 
 
 def decide(config: Config, category: Category, calibration: Calibration) -> RouteDecision:

@@ -4,7 +4,9 @@
 set -u
 export CONTAINER_START_TS=$(date +%s)  # the 10-min clock starts NOW
 
-if vulkaninfo --summary >/dev/null 2>&1; then
+# timeout guard: a hung vulkaninfo on a headless box must not eat the 60s
+# boot window. Require a real GPU device type, not the llvmpipe software rasterizer.
+if timeout 5 vulkaninfo --summary 2>/dev/null | grep -qE 'deviceType.*(DISCRETE|INTEGRATED|VIRTUAL)_GPU'; then
   LLAMA_BIN=$(find /opt/llama-vulkan -name llama-server | head -1)
   echo "[entrypoint] GPU detected: using Vulkan build" >&2
 else

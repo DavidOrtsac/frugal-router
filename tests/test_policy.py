@@ -57,18 +57,14 @@ def test_resolver_handles_full_path_allowed_list():
         "accounts/fireworks/models/kimi-k2p7-code"
 
 
-def test_resolver_handles_short_name_allowed_list():
+def test_resolver_returns_allowed_entries_verbatim():
+    # The startup probe verifies and pins every allowed entry; resolution must
+    # return them character for character — no prefixing, no rewriting.
     from dataclasses import replace
     from frugal_router.policy import resolve_remote_model
     config = replace(Config(), allowed_models=("kimi-k2p7-code",))
-    # Direct Fireworks 404s on short aliases, so canonicalize them.
     assert resolve_remote_model(config, "accounts/fireworks/models/kimi-k2p7-code") == \
-        "accounts/fireworks/models/kimi-k2p7-code"
-
-
-def test_resolver_preserves_short_alias_for_custom_proxy():
-    from dataclasses import replace
-    from frugal_router.policy import resolve_remote_model
+        "kimi-k2p7-code"
     config = replace(
         Config(),
         fireworks_base_url="https://judge-proxy.example/v1",

@@ -1,8 +1,16 @@
 """Environment-driven configuration. Every scoring lever lives here so the eval
-harness can sweep it without code changes."""
+harness can sweep it without code changes.
+
+The three judge-injected variables (FIREWORKS_BASE_URL, FIREWORKS_API_KEY,
+ALLOWED_MODELS) arrive in an UNDOCUMENTED serialization. Everything read from
+them is sanitized defensively: quotes, brackets, whitespace, JSON arrays, and
+alternative separators are all tolerated, because a single wrong assumption
+here silently kills every remote call (proven by seven scored submissions).
+"""
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 
 from .schemas import Category
@@ -43,6 +51,57 @@ DEFAULT_THRESHOLDS = {
 }
 
 
+_MODEL_TOKEN = re.compile(r"^[A-Za-z0-9._/-]+$")
+_QUOTE_CHARS = " \t\r\n'\"[](){}"
+
+
+def _sanitize_env(value: str) -> str:
+    return (value or "").strip().strip("'\"").strip()
+
+
+def sanitize_base_url(raw: str) -> str:
+    """Normalize an injected base URL: strip quotes/whitespace, a trailing
+    slash, and a mistakenly-included /chat/completions suffix (the OpenAI SDK
+    appends that path itself). Returns "" when unset so callers can default."""
+    base = _sanitize_env(raw).rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[: -len("/chat/completions")].rstrip("/")
+    if base and "://" not in base:
+        base = "https://" + base
+    return base
+
+
+def parse_allowed_models(raw: str) -> tuple:
+    """Parse ALLOWED_MODELS in whatever serialization the harness uses.
+
+    Accepts: bare comma-separated, comma+space, JSON arrays (single- or
+    double-quoted), space/semicolon/newline separated, and quote- or
+    bracket-wrapped tokens. Returns (clean_tokens, raw_tokens): clean tokens
+    are validated model-id shapes; raw tokens preserve the original split
+    pieces as last-resort probe candidates."""
+    text = (raw or "").strip()
+    if not text:
+        return (), ()
+    for candidate in (text, text.replace("'", '"')):
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(data, list):
+            tokens = tuple(str(item).strip() for item in data if str(item).strip())
+            return tokens, tokens
+        if isinstance(data, str) and data.strip():
+            text = data.strip()
+            break
+    pieces = [p for p in re.split(r"[,;\s]+", text) if p]
+    cleaned = []
+    for piece in pieces:
+        token = piece.strip(_QUOTE_CHARS)
+        if token and _MODEL_TOKEN.match(token):
+            cleaned.append(token)
+    return tuple(dict.fromkeys(cleaned)), tuple(dict.fromkeys(pieces))
+
+
 @dataclass(frozen=True)
 class Config:
     local_base_url: str = "http://localhost:8901/v1"
@@ -51,6 +110,7 @@ class Config:
     fireworks_base_url: str = "https://api.fireworks.ai/inference/v1"
     fireworks_api_key: str = ""
     allowed_models: tuple = DEFAULT_ALLOWED_MODELS
+    allowed_models_raw: tuple = ()  # unsanitized split pieces, probe fallback
     remote_by_category: dict = field(default_factory=lambda: dict(DEFAULT_REMOTE_BY_CATEGORY))
     thresholds: dict = field(default_factory=lambda: dict(DEFAULT_THRESHOLDS))
     consistency_samples: int = 3
@@ -70,9 +130,11 @@ class Config:
         Category.LOGICAL: 400,
         Category.CODE_GEN: 700,
     })
-    remote_max_tokens: int = 512
-    remote_max_tokens_code: int = 900  # stay below the judge's 30s/request cap
-    remote_timeout_seconds: float = 24.0
+    remote_max_tokens: int = 768
+    # Code budget vs the judge's 30s/request cap: 1400 tokens needs ~50 tok/s
+    # sustained through the proxy — rehearse before changing either number.
+    remote_max_tokens_code: int = 1400
+    remote_timeout_seconds: float = 28.0
     remote_attempts: int = 2  # retry quick 429/5xx proxy failures, not slow timeouts
     remote_retry_delay_seconds: float = 0.75
     remote_workers: int = 3  # separate cap so the judge proxy is not stampeded
@@ -83,12 +145,9 @@ class Config:
 
 
 def config_from_env() -> Config:
-    allowed = os.environ.get("ALLOWED_MODELS", "")
-    allowed_models = (
-        tuple(m.strip() for m in allowed.split(",") if m.strip())
-        if allowed
-        else DEFAULT_ALLOWED_MODELS
-    )
+    allowed_clean, allowed_raw = parse_allowed_models(
+        os.environ.get("ALLOWED_MODELS", ""))
+    allowed_models = allowed_clean or DEFAULT_ALLOWED_MODELS
     remote_by_category = dict(DEFAULT_REMOTE_BY_CATEGORY)
     remote_default = os.environ.get("REMOTE_DEFAULT_MODEL")
     if remote_default:
@@ -122,9 +181,11 @@ def config_from_env() -> Config:
         local_base_url=os.environ.get("LOCAL_BASE_URL", Config.local_base_url),
         local_model=os.environ.get("LOCAL_MODEL", Config.local_model),
         local_extra_body=json.loads(os.environ.get("LOCAL_EXTRA_BODY", "{}")),
-        fireworks_base_url=os.environ.get("FIREWORKS_BASE_URL", Config.fireworks_base_url),
-        fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", ""),
+        fireworks_base_url=(sanitize_base_url(os.environ.get("FIREWORKS_BASE_URL", ""))
+                            or Config.fireworks_base_url),
+        fireworks_api_key=_sanitize_env(os.environ.get("FIREWORKS_API_KEY", "")),
         allowed_models=allowed_models,
+        allowed_models_raw=allowed_raw,
         remote_by_category=remote_by_category,
         thresholds=thresholds,
         consistency_samples=int(os.environ.get("CONSISTENCY_SAMPLES", "3")),

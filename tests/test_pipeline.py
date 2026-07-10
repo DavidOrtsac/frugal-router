@@ -106,13 +106,14 @@ def test_run_batch_caps_remote_concurrency():
     assert remote.max_active <= 2
 
 
-def test_missing_fireworks_key_skips_remote_and_uses_local_sampling():
+def test_probe_failure_disables_remote_and_uses_local_sampling():
+    # remote=None is how main.py signals "startup probe found no channel".
     local = CountingClient("local-ok")
     config = replace(Config(), consistency_samples=4, consistency_samples_max=6)
 
     result = _escalate(
         config,
-        ExplodingRemote(),
+        None,
         Task("t", "What is the capital of Australia?"),
         Category.FACTUAL,
         reason="forced",
@@ -121,8 +122,72 @@ def test_missing_fireworks_key_skips_remote_and_uses_local_sampling():
 
     assert result.answer == "local-ok"
     assert result.remote_tokens == 0
-    assert "missing FIREWORKS_API_KEY" in result.reason
+    assert "probe=ALL_FAILED" in result.reason
     assert local.calls == 4
+
+
+class StructuralError(Exception):
+    status_code = 404
+
+
+class AlwaysFailingRemote(ConstantClient):
+    def __init__(self, exc_factory=StructuralError):
+        super().__init__("never")
+        self.calls = 0
+        self._exc_factory = exc_factory
+
+    def complete(self, model, system, user, temperature=0.0, max_tokens=512):
+        self.calls += 1
+        raise self._exc_factory("structurally dead")
+
+
+def test_breaker_opens_on_structural_failures_and_stops_remote_calls():
+    from frugal_router.pipeline import RemoteBreaker
+
+    local = ConstantClient("local-ok")
+    remote = AlwaysFailingRemote()
+    config = replace(Config(), fireworks_api_key="test-key", remote_attempts=1)
+    breaker = RemoteBreaker(limit=2, retry_after=300.0)
+
+    for i in range(4):
+        result = _escalate(
+            config, remote, Task(str(i), "What is the capital of Australia?"),
+            Category.FACTUAL, reason="forced", local=local, breaker=breaker,
+        )
+        assert result.remote_tokens == 0
+        assert result.answer == "local-ok"
+
+    # Two failures open the circuit; the last two tasks never touch remote.
+    assert remote.calls == 2
+    assert breaker.dead
+
+
+def test_breaker_ignores_timeouts_and_half_opens_for_recovery():
+    from frugal_router.pipeline import RemoteBreaker
+
+    class FakeTimeout(Exception):
+        pass
+    FakeTimeout.__name__ = "ReadTimeoutError"
+
+    breaker = RemoteBreaker(limit=2, retry_after=0.0)
+    # Timeouts never open the circuit, no matter how many.
+    for _ in range(10):
+        breaker.record_failure(FakeTimeout("slow"))
+    assert not breaker.dead
+
+    # Structural failures open it; retry_after=0 half-opens immediately.
+    breaker = RemoteBreaker(limit=2, retry_after=0.0)
+    breaker.record_failure(StructuralError("x"))
+    breaker.record_failure(StructuralError("x"))
+    assert not breaker.dead  # half-open: a trial call is allowed
+    breaker.record_success()
+    assert not breaker.dead  # fully closed again
+
+    # With a long retry window it stays latched until the window passes.
+    breaker = RemoteBreaker(limit=2, retry_after=300.0)
+    breaker.record_failure(StructuralError("x"))
+    breaker.record_failure(StructuralError("x"))
+    assert breaker.dead
 
 
 def test_write_results_creates_output_directory(tmp_path):

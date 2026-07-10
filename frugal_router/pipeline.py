@@ -28,7 +28,8 @@ from .schemas import Category, Route, Task, TaskResult
 
 
 def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
-             k_initial: int, k_max: int, remote_gate=None) -> TaskResult:
+             k_initial: int, k_max: int, remote_gate=None,
+             breaker=None) -> TaskResult:
     classification = classify(task)
     category = classification.category
 
@@ -38,7 +39,7 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
         # Used by --remote-only baselines and per-category forced escalation.
         return _escalate(config, remote, task, category,
                          reason="forced remote (threshold > 1)", local=local,
-                         remote_gate=remote_gate)
+                         remote_gate=remote_gate, breaker=breaker)
     if threshold == 0.0:
         # Always-local category: voting cannot change the decision, so one
         # greedy sample is enough — a large wall-clock saving on 2 vCPUs.
@@ -63,19 +64,95 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
     return _escalate(config, remote, task, category, reason=decision.reason,
                      model=decision.model,
                      fallback_answer=calibration.majority_answer,
-                     remote_gate=remote_gate)
+                     remote_gate=remote_gate, breaker=breaker)
+
+
+class RemoteBreaker:
+    """Protects the wall clock from a structurally-dead remote WITHOUT ever
+    permanently disabling a probe-verified channel.
+
+    Only structural failures (definite HTTP status, excluding 408/429) count
+    toward opening: timeouts and rate limits are transient by nature and a
+    timeout storm is already survivable (non-retryable, bounded per call).
+    An open circuit HALF-OPENS after `retry_after` seconds — one failure
+    re-latches it, one success closes it fully. A transient blip can
+    therefore cost at most one retry window, never the whole run."""
+
+    def __init__(self, limit: int = 5, retry_after: float = 30.0):
+        self._limit = limit
+        self._retry_after = retry_after
+        self._consecutive = 0
+        self._opened_at = None
+        self._lock = Lock()
+
+    @property
+    def dead(self) -> bool:
+        with self._lock:
+            if self._opened_at is None:
+                return False
+            if time.monotonic() - self._opened_at >= self._retry_after:
+                # Half-open: let calls through; the next outcome decides.
+                return False
+            return True
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._consecutive = 0
+            if self._opened_at is not None:
+                print("[frugal-router] remote circuit CLOSED after successful "
+                      "trial call", file=sys.stderr)
+            self._opened_at = None
+
+    def record_failure(self, exc: Exception = None) -> None:
+        if not _is_structural_failure(exc):
+            return
+        with self._lock:
+            self._consecutive += 1
+            if self._consecutive >= self._limit:
+                if self._opened_at is None:
+                    print(f"[frugal-router] remote circuit OPEN after "
+                          f"{self._consecutive} consecutive structural "
+                          f"failures — retrying in {self._retry_after:.0f}s",
+                          file=sys.stderr)
+                self._opened_at = time.monotonic()
+
+
+def _is_structural_failure(exc: Exception) -> bool:
+    """A definite HTTP status other than 408/429 means the request itself is
+    being rejected (bad model id, bad route, bad auth) — the class of failure
+    worth opening the circuit for. Timeouts and transport blips are not."""
+    if exc is None:
+        return True
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None) if response is not None else None
+    if status is None:
+        return False
+    return isinstance(status, int) and status not in (408, 429)
 
 
 def _escalate(config: Config, remote: ChatClient, task: Task, category: Category,
               reason: str, model: str = None, local: ChatClient = None,
-              fallback_answer: str = None, remote_gate=None) -> TaskResult:
+              fallback_answer: str = None, remote_gate=None,
+              breaker=None) -> TaskResult:
     if model is None:
         preferred = config.remote_by_category.get(category, "gemma-4-31b-it")
         model = resolve_remote_model(config, preferred)
-    if not config.fireworks_api_key:
+    if remote is None:
+        # The startup probe found no working channel: local-only mode.
         return _local_fallback(
             config, task, category,
-            reason=f"{reason}; missing FIREWORKS_API_KEY",
+            reason=f"{reason}; remote disabled (probe=ALL_FAILED)",
+            local=local,
+            fallback_answer=fallback_answer,
+            k_initial=config.consistency_samples,
+            k_max=config.consistency_samples_max,
+        )
+    if breaker is not None and breaker.dead:
+        return _local_fallback(
+            config, task, category,
+            reason=f"{reason}; remote circuit open",
             local=local,
             fallback_answer=fallback_answer,
             k_initial=config.consistency_samples,
@@ -87,8 +164,11 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
     started = time.monotonic()
     try:
         completion = _complete_remote_with_retry(
-            config, remote, remote_gate, model, category, task.prompt, remote_budget)
+            config, remote, remote_gate, model, category, task.prompt,
+            remote_budget, breaker=breaker)
         elapsed = time.monotonic() - started
+        if breaker is not None:
+            breaker.record_success()
         return TaskResult(
             task_id=task.task_id, answer=extract_answer(category, completion.text),
             category=category, route=Route.REMOTE, model=model,
@@ -100,6 +180,8 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
         print(f"[frugal-router] REMOTE CALL FAILED model={model} "
               f"after {elapsed:.1f}s: {exc}",
               file=sys.stderr)
+        if breaker is not None:
+            breaker.record_failure(exc)
         return _local_fallback(
             config, task, category,
             reason=f"remote failed ({exc})",
@@ -132,15 +214,24 @@ def _local_fallback(config: Config, task: Task, category: Category, reason: str,
     )
 
 
+class _CircuitOpen(Exception):
+    """Raised when the breaker opened while this thread waited at the gate.
+    Carries no status_code, so it never counts as a structural failure."""
+
+
 def _complete_remote_with_retry(config: Config, remote: ChatClient, remote_gate,
                                 model: str, category: Category, prompt: str,
-                                remote_budget: int):
+                                remote_budget: int, breaker=None):
     attempts = max(1, config.remote_attempts)
     gate = remote_gate if remote_gate is not None else nullcontext()
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:
             with gate:
+                # The breaker may have opened while this thread queued at the
+                # semaphore — re-check before spending a real request.
+                if breaker is not None and breaker.dead:
+                    raise _CircuitOpen("remote circuit open")
                 return remote.complete(
                     model, system_prompt(category), prompt,
                     temperature=0.0, max_tokens=remote_budget,
@@ -180,6 +271,7 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     degrade_level = [0]  # ratchet: only ever increases
     progress_lock = Lock()
     remote_gate = Semaphore(max(1, config.remote_workers))
+    breaker = RemoteBreaker()
 
     def _one(index_task):
         i, task = index_task
@@ -189,7 +281,7 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                                               degrade_level=degrade_level)
         try:
             result = run_task(config, local, remote, task, k_initial, k_max,
-                              remote_gate=remote_gate)
+                              remote_gate=remote_gate, breaker=breaker)
         except Exception as exc:  # a failed task must never sink the batch
             print(f"[frugal-router] task {task.task_id} failed: {exc}", file=sys.stderr)
             result = TaskResult(
