@@ -365,8 +365,15 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
         with progress_lock:
             done_count[0] += 1
         if isinstance(plan_or_result, TaskResult):  # guard fallback
-            plan_or_result = TaskPlan(category=plan_or_result.category,
-                                      result=plan_or_result)
+            # A doubly-failed LOCAL attempt must not ship an empty answer
+            # while a remote expert exists: escalate it in phase 2 instead.
+            if remote is not None and not plan_or_result.answer:
+                plan_or_result = TaskPlan(
+                    category=plan_or_result.category,
+                    reason="local dead — escalating")
+            else:
+                plan_or_result = TaskPlan(category=plan_or_result.category,
+                                          result=plan_or_result)
         state = ("local-done" if plan_or_result.result is not None
                  else "escalate-later")
         print(f"[frugal-router] P1 {done_count[0]}/{len(tasks)} "
