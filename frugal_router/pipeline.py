@@ -211,8 +211,13 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
         )
     except Exception as exc:
         elapsed = time.monotonic() - started
+        cause = exc
+        chain = []
+        while cause is not None and len(chain) < 5:
+            chain.append(f"{type(cause).__name__}({cause})")
+            cause = cause.__cause__ or cause.__context__
         print(f"[frugal-router] REMOTE CALL FAILED model={model} "
-              f"after {elapsed:.1f}s: {exc}",
+              f"after {elapsed:.1f}s: {' <- '.join(chain)}",
               file=sys.stderr)
         if breaker is not None:
             breaker.record_failure(exc)
@@ -311,6 +316,13 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     remote_gate = Semaphore(max(1, config.remote_workers))
     breaker = RemoteBreaker()
 
+    def _cause_chain(exc):
+        chain, cause = [], exc
+        while cause is not None and len(chain) < 5:
+            chain.append(f"{type(cause).__name__}({cause})")
+            cause = cause.__cause__ or cause.__context__
+        return " <- ".join(chain)
+
     def _guard(task, fn, phase_label):
         """Run fn with the one-retry guard; a failed task never sinks the
         batch and never silently emits an empty answer without a retry."""
@@ -318,13 +330,13 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
             return fn()
         except Exception as exc:
             print(f"[frugal-router] task {task.task_id} failed ({phase_label}):"
-                  f" {exc} — retrying once", file=sys.stderr)
+                  f" {_cause_chain(exc)} — retrying once", file=sys.stderr)
             time.sleep(3.0)
             try:
                 return fn()
             except Exception as exc2:
                 print(f"[frugal-router] task {task.task_id} failed twice: "
-                      f"{exc2}", file=sys.stderr)
+                      f"{_cause_chain(exc2)}", file=sys.stderr)
                 return TaskResult(
                     task_id=task.task_id, answer="",
                     category=classify(task).category,
