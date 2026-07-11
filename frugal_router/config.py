@@ -104,7 +104,7 @@ def parse_allowed_models(raw: str) -> tuple:
 
 @dataclass(frozen=True)
 class Config:
-    local_base_url: str = "http://localhost:8901/v1"
+    local_base_url: str = "http://127.0.0.1:8901/v1"
     local_model: str = "qwen3-1.7b"
     local_extra_body: dict = field(default_factory=dict)  # e.g. disable Qwen3 thinking
     fireworks_base_url: str = "https://api.fireworks.ai/inference/v1"

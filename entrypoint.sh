@@ -24,7 +24,7 @@ LLAMA_PID=$!
 LLAMA_READY=0
 
 for i in $(seq 1 50); do
-  if curl -sf http://localhost:8901/health >/dev/null 2>&1; then
+  if curl -sf http://127.0.0.1:8901/health >/dev/null 2>&1; then
     echo "[entrypoint] local model ready after ~$i checks" >&2
     LLAMA_READY=1
     break

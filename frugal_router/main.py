@@ -85,9 +85,18 @@ def main() -> int:
         extra_body=config.local_extra_body,
         timeout=240.0,
         max_retries=2,  # localhost retries are nearly free; absorb 4GB-box hiccups
-        # trust_env=False: judge-set HTTP(S)_PROXY vars must never hijack
-        # the localhost hop to the local model server.
-        http_client=httpx.Client(trust_env=False, timeout=240.0),
+        # trust_env=False: judge-set HTTP(S)_PROXY vars must never hijack the
+        # localhost hop. Long keepalive + capped pool: reuse warm IPv4
+        # connections instead of dialing fresh ones mid-run (fresh dials to
+        # "localhost" resolved ::1 first and died with EADDRNOTAVAIL inside
+        # IPv6-less Docker — the root cause of three days of task deaths).
+        http_client=httpx.Client(
+            trust_env=False,
+            timeout=httpx.Timeout(240.0, connect=15.0),
+            limits=httpx.Limits(max_keepalive_connections=8,
+                                max_connections=8,
+                                keepalive_expiry=600.0),
+        ),
     )
     config, remote = _build_remote(config)
 

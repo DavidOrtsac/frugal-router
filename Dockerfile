@@ -54,7 +54,7 @@ RUN chmod +x entrypoint.sh
 # compile-check confidence (0.5); code_generation + logical forced remote.
 # VM-rehearsed under --cpus=2 --memory=4g before every change to this block.
 ENV LOCAL_MODEL=qwen3-4b \
-    LOCAL_BASE_URL=http://localhost:8901/v1 \
+    LOCAL_BASE_URL=http://127.0.0.1:8901/v1 \
     INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json \
     TIME_BUDGET_SECONDS=540 \
