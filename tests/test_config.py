@@ -25,7 +25,7 @@ def test_env_defaults_match_submission_runtime(monkeypatch):
 
     config = config_from_env()
 
-    assert config.local_base_url == "http://localhost:8901/v1"
+    assert config.local_base_url == "http://127.0.0.1:8901/v1"
     assert config.local_model == "qwen3-1.7b"
     assert config.consistency_samples == 3
     assert config.consistency_samples_max == 5
