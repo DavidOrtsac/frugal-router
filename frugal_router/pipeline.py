@@ -16,6 +16,7 @@ import sys
 import time
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from threading import Lock, Semaphore
 
 from .calibrate import calibrate_local
@@ -37,6 +38,32 @@ def _finalize(category: Category, task: Task, answer: str) -> str:
 def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
              k_initial: int, k_max: int, remote_gate=None,
              breaker=None) -> TaskResult:
+    plan = plan_task(config, local, task, k_initial, k_max)
+    if plan.result is not None:
+        return plan.result
+    return _escalate(config, remote, task, plan.category, reason=plan.reason,
+                     model=plan.model, local=local,
+                     fallback_answer=plan.fallback_answer,
+                     remote_gate=remote_gate, breaker=breaker)
+
+
+@dataclass(frozen=True)
+class TaskPlan:
+    """Phase-1 outcome: either a finished LOCAL result, or an escalation
+    request to execute in phase 2 (when the local model is idle — remote
+    calls made while llama saturates the CPU quota die mid-handshake)."""
+
+    category: Category
+    result: TaskResult = None
+    reason: str = ""
+    model: str = None
+    fallback_answer: str = None
+
+
+def plan_task(config: Config, local: ChatClient, task: Task,
+              k_initial: int, k_max: int) -> TaskPlan:
+    """Phase 1: everything that needs only the LOCAL model. Never touches
+    the network beyond localhost."""
     classification = classify(task)
     category = classification.category
 
@@ -44,9 +71,8 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
     if threshold > 1.0:
         # Forced-remote (threshold unreachable): skip local sampling entirely.
         # Used by --remote-only baselines and per-category forced escalation.
-        return _escalate(config, remote, task, category,
-                         reason="forced remote (threshold > 1)", local=local,
-                         remote_gate=remote_gate, breaker=breaker)
+        return TaskPlan(category=category,
+                        reason="forced remote (threshold > 1)")
     if threshold == 0.0:
         # Always-local category: voting cannot change the decision, so one
         # greedy sample is enough — a large wall-clock saving on 2 vCPUs.
@@ -62,17 +88,15 @@ def run_task(config: Config, local: ChatClient, remote: ChatClient, task: Task,
     decision = decide(config, category, calibration)
 
     if decision.route == Route.LOCAL:
-        return TaskResult(
+        return TaskPlan(category=category, result=TaskResult(
             task_id=task.task_id,
             answer=_finalize(category, task, calibration.majority_answer),
             category=category, route=Route.LOCAL, model=decision.model,
             remote_tokens=0, reason=decision.reason,
-        )
-
-    return _escalate(config, remote, task, category, reason=decision.reason,
-                     model=decision.model,
-                     fallback_answer=calibration.majority_answer,
-                     remote_gate=remote_gate, breaker=breaker)
+        ))
+    return TaskPlan(category=category, reason=decision.reason,
+                    model=decision.model,
+                    fallback_answer=calibration.majority_answer)
 
 
 class RemoteBreaker:
@@ -287,67 +311,95 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     remote_gate = Semaphore(max(1, config.remote_workers))
     breaker = RemoteBreaker()
 
-    def _one(index_task):
-        i, task = index_task
-        with progress_lock:
-            k_initial, k_max = _sampling_plan(config, started,
-                                              done=done_count[0], total=len(tasks),
-                                              degrade_level=degrade_level)
-        emergency = (time.monotonic() - started
-                     > config.time_budget_seconds * 0.92)
-
-        def _attempt(k_lo, k_hi):
-            if emergency and remote is not None:
-                # The clock is nearly gone: a slow local generation now risks
-                # a TIMEOUT for the whole batch. Remote answers in seconds —
-                # emergency tokens beat an unscored run.
-                category = classify(task).category
-                return _escalate(config, remote, task, category,
-                                 reason="time emergency", local=local,
-                                 remote_gate=remote_gate, breaker=breaker)
-            return run_task(config, local, remote, task, k_lo, k_hi,
-                            remote_gate=remote_gate, breaker=breaker)
-
+    def _guard(task, fn, phase_label):
+        """Run fn with the one-retry guard; a failed task never sinks the
+        batch and never silently emits an empty answer without a retry."""
         try:
-            result = _attempt(k_initial, k_max)
-        except Exception as exc:  # a failed task must never sink the batch
-            # An empty answer is a guaranteed miss; a transient connection
-            # blip usually is not. One paced retry converts those.
-            print(f"[frugal-router] task {task.task_id} failed: {exc} — "
-                  f"retrying once", file=sys.stderr)
+            return fn()
+        except Exception as exc:
+            print(f"[frugal-router] task {task.task_id} failed ({phase_label}):"
+                  f" {exc} — retrying once", file=sys.stderr)
             time.sleep(3.0)
             try:
-                result = _attempt(1, 1)
+                return fn()
             except Exception as exc2:
                 print(f"[frugal-router] task {task.task_id} failed twice: "
                       f"{exc2}", file=sys.stderr)
-                result = TaskResult(
+                return TaskResult(
                     task_id=task.task_id, answer="",
                     category=classify(task).category,
                     route=Route.LOCAL, model=config.local_model,
                     remote_tokens=0, reason=f"error: {exc2}",
                 )
+
+    # PHASE 1 — local-only. Remote calls made while llama saturates the
+    # 2-CPU cgroup quota die mid-handshake (throttling starves the sockets),
+    # so nothing touches the network here beyond localhost.
+    def _phase1(index_task):
+        i, task = index_task
+        with progress_lock:
+            k_initial, k_max = _sampling_plan(config, started,
+                                              done=done_count[0], total=len(tasks),
+                                              degrade_level=degrade_level)
+        if (time.monotonic() - started > config.time_budget_seconds * 0.92
+                and remote is not None):
+            # Clock nearly gone: skip slow local generation, answer remotely
+            # in phase 2 — emergency tokens beat an unscored run.
+            return TaskPlan(category=classify(task).category,
+                            reason="time emergency")
+        plan_or_result = _guard(
+            task, lambda: plan_task(config, local, task, k_initial, k_max),
+            "local phase")
         with progress_lock:
             done_count[0] += 1
-            done = done_count[0]
-        print(
-            f"[frugal-router] {done}/{len(tasks)} {task.task_id} "
-            f"[{result.category.value}] -> {result.route.value} "
-            f"(k={k_initial}..{k_max}, remote_tokens={result.remote_tokens})",
-            file=sys.stderr,
-        )
-        return result
+        if isinstance(plan_or_result, TaskResult):  # guard fallback
+            plan_or_result = TaskPlan(category=plan_or_result.category,
+                                      result=plan_or_result)
+        state = ("local-done" if plan_or_result.result is not None
+                 else "escalate-later")
+        print(f"[frugal-router] P1 {done_count[0]}/{len(tasks)} "
+              f"{task.task_id} [{plan_or_result.category.value}] -> {state}",
+              file=sys.stderr)
+        return plan_or_result
 
-    # Local-first execution order: free local tasks run while a possibly
-    # flaky proxy gets minutes to recover; remote-needing tasks go last.
-    # Output order is restored afterwards — the contract sees input order.
     ordered = _execution_order(config, tasks)
     if config.workers <= 1:
-        computed = [(i, _one((i, task))) for i, task in ordered]
+        plans = [(i, task, _phase1((i, task))) for i, task in ordered]
     else:
         with ThreadPoolExecutor(max_workers=config.workers) as pool:
-            results = list(pool.map(_one, ordered))
-        computed = [(pair[0], result) for pair, result in zip(ordered, results)]
+            phase1 = list(pool.map(_phase1, ordered))
+        plans = [(pair[0], pair[1], plan) for pair, plan in zip(ordered, phase1)]
+
+    # PHASE 2 — escalations only, with the local model idle. The full CPU
+    # quota belongs to networking now; this is why forced-remote categories
+    # never died while mid-batch escalations always did.
+    pending = [(i, task, plan) for i, task, plan in plans if plan.result is None]
+    if pending:
+        print(f"[frugal-router] P2: {len(pending)} escalations with local idle",
+              file=sys.stderr)
+
+    def _phase2(entry):
+        i, task, plan = entry
+        result = _guard(
+            task, lambda: _escalate(
+                config, remote, task, plan.category, reason=plan.reason,
+                model=plan.model, local=local,
+                fallback_answer=plan.fallback_answer,
+                remote_gate=remote_gate, breaker=breaker),
+            "remote phase")
+        print(f"[frugal-router] P2 {task.task_id} [{result.category.value}] "
+              f"-> {result.route.value} (remote_tokens={result.remote_tokens})",
+              file=sys.stderr)
+        return i, result
+
+    computed = [(i, plan.result) for i, task, plan in plans
+                if plan.result is not None]
+    if pending:
+        if config.workers <= 1:
+            computed.extend(_phase2(entry) for entry in pending)
+        else:
+            with ThreadPoolExecutor(max_workers=max(1, config.remote_workers)) as pool:
+                computed.extend(pool.map(_phase2, pending))
     return [result for _, result in sorted(computed, key=lambda item: item[0])]
 
 
