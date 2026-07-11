@@ -132,3 +132,28 @@ def test_extract_answer_math_babble_mines_number():
     # No numbers at all -> falls through to sentence/cleaned text, non-empty.
     out = extract_answer(Category.MATH, text)
     assert out != ""
+
+
+def test_enforce_summary_exactly_two_sentences_official_t04():
+    from frugal_router.prompts import enforce_summary_format
+    prompt = "Summarize the following passage in exactly two sentences: ..."
+    answer = ("ML transforms healthcare. It detects cancer early. "
+              "But bias remains. And privacy is a concern.")
+    out = enforce_summary_format(prompt, answer)
+    assert out == "ML transforms healthcare. It detects cancer early."
+
+
+def test_enforce_summary_word_number_three_sentences():
+    from frugal_router.prompts import enforce_summary_format
+    prompt = "Summarize in three sentences."
+    answer = "One. Two. Three. Four. Five."
+    assert enforce_summary_format(prompt, answer) == "One. Two. Three."
+
+
+def test_sentiment_mixed_label_normalizes_first():
+    from frugal_router.calibrate import normalize
+    from frugal_router.schemas import Category
+    # A mixed justification mentions both words — "mixed" must still win.
+    text = "Mixed. The delivery was negative but the service was positive."
+    assert normalize(Category.SENTIMENT, text) == "mixed"
+    assert normalize(Category.SENTIMENT, "Positive") == "positive"

@@ -10,7 +10,7 @@ from .schemas import Category
 SYSTEM_PROMPTS = {
     Category.FACTUAL: "Answer the question concisely and completely, covering every part asked. No filler, no restating the question.",
     Category.MATH: "Solve the problem. Think step by step briefly, then give the final line as: ANSWER: <number>",
-    Category.SENTIMENT: "Classify the sentiment. Reply with one word (positive, negative, or neutral) unless the task asks for justification — then add one short sentence.",
+    Category.SENTIMENT: "Classify the sentiment as positive, negative, neutral, or mixed. Use 'mixed' when the text contains BOTH clear positive and clear negative elements (for example a complaint that was resolved well). Reply with the label alone, unless the task asks for justification or reasoning — then add one short sentence naming both sides.",
     Category.SUMMARIZATION: "Summarize the given text faithfully. Follow the task's format and length instructions exactly. Output only the summary.",
     Category.NER: "Extract the named entities requested. If types are requested, label each entity with its type in parentheses. Output a comma-separated list, nothing else.",
     Category.CODE_DEBUG: "Fix the bug in the given code. Output only the corrected code, no commentary.",
@@ -37,13 +37,17 @@ _FENCED_CODE = re.compile(r"```(?:[a-zA-Z0-9]*)\n(.*?)```", re.DOTALL)
 _NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 _BOXED = re.compile(r"\\boxed\s*\{\s*([^{}]*)")
-_ONE_SENTENCE = re.compile(r"\b(?:exactly\s+)?one\s+sentence\b", re.IGNORECASE)
+_ONE_SENTENCE = re.compile(r"\b(?:exactly\s+)?(?:one|1|a\s+single)\s+sentence\b",
+                           re.IGNORECASE)
 _WORD_CAP = re.compile(
     r"\b(?:in|within|under|at most|no more than|fewer than|maximum of)\s+"
     r"(\d{1,3})\s+words?\b", re.IGNORECASE)
+# "in exactly two sentences", "in 3 sentences", "no more than 2 sentences" —
+# the official validation set uses the exactly-N phrasing (T04).
 _SENTENCE_CAP = re.compile(
-    r"\b(?:in|within|under|at most|no more than|maximum of)\s+"
-    r"(\d{1,2})\s+sentences?\b", re.IGNORECASE)
+    r"\b(?:in|within|under|at most|no more than|maximum of|exactly|using)?\s*"
+    r"(one|two|three|four|five|\d{1,2})\s+sentences?\b", re.IGNORECASE)
+_NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
 
 
 def extract_answer(category: Category, text: str) -> str:
@@ -167,7 +171,9 @@ def enforce_summary_format(task_prompt: str, answer: str) -> str:
         return sentences[0]
     cap = _SENTENCE_CAP.search(task_prompt)
     if cap and sentences:
-        return " ".join(sentences[: max(1, int(cap.group(1)))])
+        raw = cap.group(1).lower()
+        limit = _NUMBER_WORDS.get(raw, int(raw) if raw.isdigit() else 1)
+        return " ".join(sentences[: max(1, limit)])
     words_cap = _WORD_CAP.search(task_prompt)
     if words_cap:
         limit = max(1, int(words_cap.group(1)))

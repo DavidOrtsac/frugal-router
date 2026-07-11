@@ -1,0 +1,44 @@
+[
+  {
+    "task_id": "T01",
+    "category": "factual_knowledge",
+    "prompt": "What are the three primary colors of light used in digital displays, and why do displays use this color model instead of the red-yellow-blue model taught in art class?",
+    "gold": {
+      "accept": ["red green blue"],
+      "must_contain": ["red", "green", "blue", "additive"]
+    }
+  },
+  {
+    "task_id": "T02",
+    "category": "math_reasoning",
+    "prompt": "A warehouse starts the year with 2,400 units of a product. In Q1 it sells 37% of its starting inventory. In Q2 it restocks 800 units. In Q3 it sells 640 units. How many units are in the warehouse after Q3? Show your work.",
+    "gold": {
+      "answer": 1672
+    }
+  },
+  {
+    "task_id": "T03",
+    "category": "sentiment_classification",
+    "prompt": "Classify the sentiment of this customer review and briefly justify your answer: \"The delivery was three days late and the packaging arrived damaged, but the customer service team responded immediately, apologized, and sent a replacement that works perfectly.\"",
+    "gold": {
+      "accept": ["mixed", "neutral", "positive"]
+    }
+  },
+  {
+    "task_id": "T04",
+    "category": "text_summarization",
+    "prompt": "Summarize the following passage in exactly two sentences: Machine learning is transforming healthcare by enabling earlier diagnosis, personalized treatment plans, and more efficient hospital operations. Models trained on medical imaging can now detect certain cancers earlier than human radiologists, and predictive systems help clinicians anticipate patient deterioration hours before it happens. However, significant challenges remain. Training data often underrepresents minority populations, which can cause models to perform worse for those patients, and the use of sensitive medical records raises serious patient privacy concerns. Regulators and hospitals are still working out how to deploy these systems safely and equitably.",
+    "gold": {
+      "must_contain": ["healthcare"],
+      "sentences": 2
+    }
+  },
+  {
+    "task_id": "T05",
+    "category": "ner",
+    "prompt": "Extract all named entities from the following sentence and label each with its type (person, date, organization, location): \"On March 14, 2023, Dr. Elena Vasquez left her position at Stanford University to join the research team at DeepMind in London.\"",
+    "gold": {
+      "accept": ["elena vasquez", "march 14 2023", "stanford university", "deepmind", "london"]
+    }
+  }
+]

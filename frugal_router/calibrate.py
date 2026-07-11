@@ -19,7 +19,9 @@ from .prompts import (_CODE_CATEGORIES, _MARKER_CATEGORIES, extract_answer,
 from .schemas import Calibration, Category, Task
 
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
-_SENTIMENT_LABELS = ("positive", "negative", "neutral")
+# "mixed" must be checked FIRST: a mixed answer usually contains the words
+# "positive" and "negative" in its justification.
+_SENTIMENT_LABELS = ("mixed", "positive", "negative", "neutral")
 
 
 def calibrate_local(client: ChatClient, model: str, task: Task, category: Category,
