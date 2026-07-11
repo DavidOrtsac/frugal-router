@@ -17,8 +17,15 @@ fi
 # nice +10: llama pegs every core it gets; the router's OUTBOUND NETWORK
 # threads must always win the scheduler or remote calls die mid-handshake
 # ("Connection error" from inside) — the local model yields, the sockets live.
+# --cache-ram 0 --ctx-checkpoints 0 --no-cache-prompt: llama.cpp b9910
+# defaults to an 8 GiB HOST prompt cache plus context checkpoints. Inside a
+# 4GB container that is a guaranteed cgroup OOM kill — the kernel reaps
+# llama-server mid-run and every later request gets ECONNREFUSED. This was
+# the true cause of the "connection refused" task deaths (confirmed in the
+# VM's kernel OOM log). Our prompts are independent; the cache buys nothing.
 nice -n 10 "$LLAMA_BIN" -m /models/local.gguf --port 8901 \
-  -c "${LLAMA_CTX:-8192}" -np "${LLAMA_SLOTS:-4}" -t "${LLAMA_THREADS:-2}" \
+  -c "${LLAMA_CTX:-8192}" -np "${LLAMA_SLOTS:-1}" -t "${LLAMA_THREADS:-2}" \
+  --cache-ram 0 --ctx-checkpoints 0 --no-cache-prompt \
   --no-webui --jinja --reasoning-budget 0 >/tmp/llama.log 2>&1 &
 LLAMA_PID=$!
 LLAMA_READY=0

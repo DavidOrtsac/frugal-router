@@ -226,8 +226,11 @@ def _escalate(config: Config, remote: ChatClient, task: Task, category: Category
             reason=f"remote failed ({exc})",
             local=local,
             fallback_answer=fallback_answer,
-            k_initial=3,
-            k_max=3,
+            # ONE bounded sample, not three: a failed remote call on a
+            # forced-remote category otherwise triggers three full local
+            # generations (hundreds of seconds on 2 CPU cores).
+            k_initial=1,
+            k_max=1,
         )
 
 
@@ -298,7 +301,8 @@ def _retryable_remote_error(exc: Exception) -> bool:
     return status in (408, 409, 429) or (isinstance(status, int) and status >= 500)
 
 
-def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list) -> list:
+def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list,
+              checkpointer=None) -> list:
     """Process tasks concurrently. The local server batches parallel requests
     efficiently, and the scoring time budget is far too small for sequential
     processing. Results keep input order."""
@@ -376,6 +380,8 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                                           result=plan_or_result)
         state = ("local-done" if plan_or_result.result is not None
                  else "escalate-later")
+        if plan_or_result.result is not None and checkpointer is not None:
+            checkpointer.record(plan_or_result.result)
         print(f"[frugal-router] P1 {done_count[0]}/{len(tasks)} "
               f"{task.task_id} [{plan_or_result.category.value}] -> {state}",
               file=sys.stderr)
@@ -406,6 +412,8 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
                 fallback_answer=plan.fallback_answer,
                 remote_gate=remote_gate, breaker=breaker),
             "remote phase")
+        if checkpointer is not None:
+            checkpointer.record(result)
         print(f"[frugal-router] P2 {task.task_id} [{result.category.value}] "
               f"-> {result.route.value} (remote_tokens={result.remote_tokens})",
               file=sys.stderr)
@@ -414,10 +422,13 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
     computed = [(i, plan.result) for i, task, plan in plans
                 if plan.result is not None]
     if pending:
-        if config.workers <= 1:
+        # remote_workers governs phase 2 — it must not be gated on the LOCAL
+        # worker count (a WORKERS=1 config would otherwise serialize every
+        # escalation and blow the clock).
+        if config.remote_workers <= 1:
             computed.extend(_phase2(entry) for entry in pending)
         else:
-            with ThreadPoolExecutor(max_workers=max(1, config.remote_workers)) as pool:
+            with ThreadPoolExecutor(max_workers=config.remote_workers) as pool:
                 computed.extend(pool.map(_phase2, pending))
     return [result for _, result in sorted(computed, key=lambda item: item[0])]
 
@@ -458,7 +469,12 @@ def _sampling_plan(config: Config, started: float, done: int, total: int,
     if degrade_level[0] >= 2:
         return 1, 1
     if degrade_level[0] == 1:
-        return max(3, config.consistency_samples - 2), config.consistency_samples
+        # NEVER increase sampling under time pressure: with the shipped
+        # CONSISTENCY_SAMPLES=1 the old max(3, k-2) formula raised k from 1
+        # to 3 exactly when the clock was running out.
+        return (min(config.consistency_samples,
+                    max(1, config.consistency_samples - 2)),
+                config.consistency_samples)
     return config.consistency_samples, config.consistency_samples_max
 
 
@@ -470,11 +486,50 @@ def load_tasks(path: str) -> list:
 
 def write_results(path: str, results: list) -> None:
     payload = [{"task_id": r.task_id, "answer": r.answer} for r in results]
+    write_payload(path, payload)
+
+
+def write_payload(path: str, payload: list) -> None:
+    """Atomic write: a container killed at the 600s limit must never leave a
+    truncated or missing results.json — a partial file still scores, an
+    absent one is a total loss (OUTPUT_MISSING)."""
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def write_placeholder(path: str, tasks: list) -> None:
+    """Every task_id present from second zero, so a hard kill still yields a
+    schema-valid file with every id answered (empty answers, but scoreable)."""
+    write_payload(path, [{"task_id": t.task_id, "answer": ""} for t in tasks])
+
+
+class ResultCheckpointer:
+    """Rewrites results.json every time a task finishes. Cheap (19 tasks)
+    and it converts a timeout kill from OUTPUT_MISSING into a partial score."""
+
+    def __init__(self, path: str, tasks: list):
+        self._path = path
+        self._answers = {t.task_id: "" for t in tasks}
+        self._order = [t.task_id for t in tasks]
+        self._lock = Lock()
+
+    def record(self, result: TaskResult) -> None:
+        with self._lock:
+            self._answers[result.task_id] = result.answer or ""
+            payload = [{"task_id": tid, "answer": self._answers[tid]}
+                       for tid in self._order]
+        try:
+            write_payload(self._path, payload)
+        except Exception as exc:  # never let checkpointing sink a task
+            print(f"[frugal-router] checkpoint write failed: {exc}",
+                  file=sys.stderr)
 
 
 def report(results: list) -> dict:

@@ -6,7 +6,8 @@ from dataclasses import replace
 
 from .clients import OpenAICompatClient
 from .config import config_from_env
-from .pipeline import load_tasks, report, run_batch, write_results
+from .pipeline import (ResultCheckpointer, load_tasks, report, run_batch,
+                       write_placeholder, write_results)
 from .probe import bootstrap_remote
 
 
@@ -79,6 +80,12 @@ def main() -> int:
     tasks = load_tasks(config.input_path)
     print(f"[frugal-router] loaded {len(tasks)} tasks from {config.input_path}", file=sys.stderr)
 
+    # A schema-valid file with every task_id exists from second zero: if the
+    # judge kills the container at its runtime limit, a partial score beats
+    # OUTPUT_MISSING (which scores nothing at all).
+    write_placeholder(config.output_path, tasks)
+    checkpointer = ResultCheckpointer(config.output_path, tasks)
+
     import httpx
     local = OpenAICompatClient(
         config.local_base_url,
@@ -100,7 +107,7 @@ def main() -> int:
     )
     config, remote = _build_remote(config)
 
-    results = run_batch(config, local, remote, tasks)
+    results = run_batch(config, local, remote, tasks, checkpointer=checkpointer)
     write_results(config.output_path, results)
 
     summary = report(results)

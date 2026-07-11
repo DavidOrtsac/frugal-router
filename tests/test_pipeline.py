@@ -250,3 +250,35 @@ def test_connection_errors_are_retryable():
 
     assert _retryable_remote_error(APIConnectionError("boom"))
     assert not _retryable_remote_error(ReadTimeoutError("slow"))
+
+
+def test_checkpointer_writes_every_task_id_immediately(tmp_path):
+    from frugal_router.pipeline import ResultCheckpointer, write_placeholder
+    from frugal_router.schemas import Route, TaskResult
+    import json as _json
+
+    out = tmp_path / "results.json"
+    tasks = [Task("a", "p1"), Task("b", "p2"), Task("c", "p3")]
+    write_placeholder(str(out), tasks)
+    payload = _json.loads(out.read_text())
+    assert [r["task_id"] for r in payload] == ["a", "b", "c"]
+    assert all(r["answer"] == "" for r in payload)
+
+    cp = ResultCheckpointer(str(out), tasks)
+    cp.record(TaskResult(task_id="b", answer="answer-b",
+                         category=Category.FACTUAL, route=Route.LOCAL,
+                         model="m", remote_tokens=0, reason="r"))
+    payload = _json.loads(out.read_text())
+    assert {r["task_id"]: r["answer"] for r in payload} == {
+        "a": "", "b": "answer-b", "c": ""}
+
+
+def test_sampling_plan_never_increases_k_under_pressure():
+    from frugal_router.pipeline import _sampling_plan
+
+    config = replace(Config(), consistency_samples=1, consistency_samples_max=1,
+                     time_budget_seconds=100.0)
+    level = [1]
+    k_init, k_max = _sampling_plan(config, started=time.monotonic(),
+                                   done=0, total=10, degrade_level=level)
+    assert k_init <= 1 and k_max <= 1
