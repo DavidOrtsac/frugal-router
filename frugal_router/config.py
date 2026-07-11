@@ -121,7 +121,9 @@ class Config:
     # token budget is ~10K per 10 min, so every category pays only what its
     # answer shape needs.
     local_max_tokens_by_category: dict = field(default_factory=lambda: {
-        Category.FACTUAL: 96,
+        # 96 truncated the official T01 answer mid-sentence: multi-part
+        # factual questions ("what are X, and why Y?") need room to land.
+        Category.FACTUAL: 200,
         Category.MATH: 300,
         Category.SENTIMENT: 48,
         Category.SUMMARIZATION: 256,

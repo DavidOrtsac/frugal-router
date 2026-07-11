@@ -34,7 +34,10 @@ def grade(task: dict, answer: str) -> tuple:
             problems.append(f"got {numbers[-1]}, want {gold['answer']}")
 
     if "accept" in gold:
-        hits = [a for a in gold["accept"] if _norm(a) in norm]
+        # An accepted phrase counts when all of its words appear in the answer:
+        # "red, green, and blue (RGB)" satisfies "red green blue".
+        hits = [a for a in gold["accept"]
+                if all(w in norm.split() for w in _norm(a).split())]
         if not hits:
             problems.append(f"none of {gold['accept']} found")
 
