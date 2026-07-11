@@ -36,14 +36,18 @@ def _build_remote(config):
             config.fireworks_api_key or "EMPTY",
             timeout=config.remote_timeout_seconds,
             max_retries=0,
-            http_client=httpx.Client(trust_env=True,
-                                     timeout=config.remote_timeout_seconds),
+            http_client=httpx.Client(
+                trust_env=True,
+                timeout=httpx.Timeout(config.remote_timeout_seconds,
+                                      connect=20.0)),
         )
         return replace(config, fireworks_base_url=bases[0]), remote
+    # Generous connect budget: on a CPU-saturated 2-core box the TLS
+    # handshake itself gets starved — do not let the default 5s kill it.
     http_client = httpx.Client(
         verify=runtime.verify,
         trust_env=runtime.trust_env,
-        timeout=config.remote_timeout_seconds,
+        timeout=httpx.Timeout(config.remote_timeout_seconds, connect=20.0),
     )
     remote = OpenAICompatClient(
         runtime.base_url,

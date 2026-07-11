@@ -14,7 +14,10 @@ else
   echo "[entrypoint] no GPU: using CPU build" >&2
 fi
 
-"$LLAMA_BIN" -m /models/local.gguf --port 8901 \
+# nice +10: llama pegs every core it gets; the router's OUTBOUND NETWORK
+# threads must always win the scheduler or remote calls die mid-handshake
+# ("Connection error" from inside) — the local model yields, the sockets live.
+nice -n 10 "$LLAMA_BIN" -m /models/local.gguf --port 8901 \
   -c "${LLAMA_CTX:-8192}" -np "${LLAMA_SLOTS:-4}" -t "${LLAMA_THREADS:-2}" \
   --no-webui --jinja --reasoning-budget 0 >/tmp/llama.log 2>&1 &
 LLAMA_PID=$!
