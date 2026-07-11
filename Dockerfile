@@ -57,9 +57,9 @@ ENV LOCAL_MODEL=qwen3-4b \
     LOCAL_BASE_URL=http://127.0.0.1:8901/v1 \
     INPUT_PATH=/input/tasks.json \
     OUTPUT_PATH=/output/results.json \
-    TIME_BUDGET_SECONDS=540 \
-    WORKERS=2 \
-    REMOTE_WORKERS=2 \
+    TIME_BUDGET_SECONDS=330 \
+    WORKERS=3 \
+    REMOTE_WORKERS=3 \
     REMOTE_TIMEOUT_SECONDS=28 \
     REMOTE_ATTEMPTS=3 \
     REMOTE_MAX_TOKENS=768 \
@@ -69,7 +69,7 @@ ENV LOCAL_MODEL=qwen3-4b \
     LLAMA_SLOTS=1 \
     CONSISTENCY_SAMPLES=1 \
     CONSISTENCY_SAMPLES_MAX=1 \
-    THRESHOLDS_JSON='{"code_debugging": 0.5, "code_generation": 1.01, "factual_knowledge": 0.0, "logical_reasoning": 1.01, "math_reasoning": 0.5, "ner": 0.0, "sentiment_classification": 0.0, "text_summarization": 0.0}' \
+    THRESHOLDS_JSON='{"code_debugging": 1.01, "code_generation": 1.01, "factual_knowledge": 0.0, "logical_reasoning": 1.01, "math_reasoning": 1.01, "ner": 0.0, "sentiment_classification": 0.0, "text_summarization": 0.0}' \
     REMOTE_MAP_JSON='{"code_debugging": "kimi-k2p7-code", "code_generation": "kimi-k2p7-code", "factual_knowledge": "kimi-k2p7-code", "logical_reasoning": "kimi-k2p7-code", "math_reasoning": "kimi-k2p7-code", "ner": "kimi-k2p7-code", "sentiment_classification": "kimi-k2p7-code", "text_summarization": "kimi-k2p7-code"}'
 
 ENTRYPOINT ["./entrypoint.sh"]
