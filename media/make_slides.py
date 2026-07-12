@@ -69,7 +69,7 @@ def s2():
     img, d = new_slide()
     y = title_block(d, "The game", "Scoring rewards the frugal, not the flashy")
     bullets(d, [
-        "Every answer is judged for accuracy. Below a hidden threshold, you are out.",
+        "Every answer is judged for accuracy. Below the gate, you are out.",
         "Everyone who passes is ranked by ONE thing: fewest Fireworks tokens.",
         "Local model tokens count as ZERO.",
         "So the winner is whoever knows exactly when NOT to pay.",
@@ -80,12 +80,13 @@ def s2():
 @slide
 def s3():
     img, d = new_slide()
-    y = title_block(d, "The insight", "Free tokens can buy calibration")
+    y = title_block(d, "The insight", "Route by measured weakness, not by vibes")
     bullets(d, [
-        "A local model's confidence is a bad lie detector.",
-        "But its CONSISTENCY is a good one.",
-        "Ask it the same question several times. Agreement predicts correctness.",
-        "Local sampling is free under the rules, so the lie detector costs nothing.",
+        "A strong small model is FREE. Qwen3-4B answers most categories perfectly.",
+        "Measure where it is weak, and pay the expert for exactly that.",
+        "Confidence is checked per answer: an explicit final answer for math,",
+        "    a compile check for code, self-consistency voting everywhere else.",
+        "An answer that cannot prove itself escalates. Nothing else does.",
     ], y)
     return img
 
@@ -93,13 +94,13 @@ def s3():
 @slide
 def s4():
     img, d = new_slide()
-    y = title_block(d, "Architecture", "Classify, vote, then decide who answers")
+    y = title_block(d, "Architecture", "Classify, answer locally, escalate on doubt")
     bullets(d, [
         "1. Rule-based classifier sorts each task into 8 categories. Zero tokens.",
-        "2. Qwen3-1.7B (llama.cpp, weights baked in) votes on each task.",
-        "3. Votes agree past a tuned threshold: ship the free answer.",
-        "4. Votes scatter: escalate that one task via Fireworks. Gemma 4 by default,",
-        "    a code specialist for code.",
+        "2. Qwen3-4B (llama.cpp, weights baked in) answers locally on 2 CPU cores.",
+        "3. Answers that prove themselves ship free: math with a final-answer check,",
+        "    code that parses, consistent votes elsewhere.",
+        "4. Logical reasoning and unproven answers escalate to kimi-k2p7-code.",
     ], y)
     return img
 
@@ -107,13 +108,13 @@ def s4():
 @slide
 def s5():
     img, d = new_slide()
-    y = title_block(d, "Engineering for the grading box", "4GB RAM. 2 vCPUs. 10 minutes. 10GB image.")
+    y = title_block(d, "Hostile environment", "The judge's proxy is discovered, never assumed")
     bullets(d, [
-        "3.1GB image with model weights baked in. Boots in seconds.",
-        "Per-category token caps and adaptive vote counts sized for 2 CPU cores.",
-        "A ratcheting time guard sheds sampling before the deadline is ever at risk.",
-        "Dead remote model? Local fallback. A task can never return blank.",
-        "Off-list model calls are impossible by construction.",
+        "A boot-time probe sweeps base URLs, model ID forms, transports, and",
+        "    auth shapes, then pins the first combination that answers.",
+        "Model IDs resolve from ALLOWED_MODELS at runtime. Nothing hardcoded.",
+        "Off-list calls are impossible by construction.",
+        "If nothing answers, the router degrades to local-only and still finishes.",
     ], y)
     return img
 
@@ -121,12 +122,13 @@ def s5():
 @slide
 def s6():
     img, d = new_slide()
-    y = title_block(d, "Measurement", "A 227-task benchmark harness, built first")
+    y = title_block(d, "Time as an adversary", "A timeout scores zero, so timeouts are impossible")
     bullets(d, [
-        "GSM8K math, HumanEval code, and authored tasks across all 8 categories.",
-        "Held-out split never touched by tuning.",
-        "Executable grading: generated code actually runs against test suites.",
-        "Every routing threshold comes from recorded runs, not intuition.",
+        "Time-fit preemption: a local generation that cannot finish inside the",
+        "    remaining budget never starts. It escalates instead.",
+        "Results are checkpointed atomically after every task: even a hard kill",
+        "    leaves a valid, scoreable results.json.",
+        "Cost adapts to the host: fast box ~331 tokens, degraded box ~2,600.",
     ], y)
     return img
 
@@ -134,12 +136,12 @@ def s6():
 @slide
 def s7():
     img, d = new_slide()
-    y = title_block(d, "The ladder", "One recording, every strategy")
+    y = title_block(d, "Measurement", "A 272-task harness, built before the router")
     bullets(d, [
-        "Record the local model once, record each expert once.",
-        "Then replay every threshold combination offline, instantly.",
-        "Result: a ladder from 77% accuracy at 0 tokens to 95% at 47K.",
-        "Submissions walk down the ladder until the accuracy gate bites.",
+        "GSM8K math, HumanEval code, and authored tasks across all 8 categories.",
+        "Held-out split never touched by tuning. Generated code actually executes.",
+        "Offline replay: record models once, re-score every routing policy instantly.",
+        "Every threshold in the shipped image comes from a measured rehearsal.",
     ], y)
     return img
 
@@ -147,12 +149,12 @@ def s7():
 @slide
 def s8():
     img, d = new_slide()
-    y = title_block(d, "Results", "Dress rehearsal on a clone of the grading machine")
+    y = title_block(d, "Results", "Rehearsed on a clone of the grading machine")
     bullets(d, [
-        "92.5% accuracy on held-out tasks it had never seen.",
-        "5 minutes 58 seconds end to end, inside 4GB and 2 vCPUs.",
-        "Most answers free. Escalations cost ~6.6K tokens per 40 tasks.",
-        "Send-everything-remote baseline: ~50K+ tokens for similar accuracy.",
+        "5/5 on the organizers' official validation tasks, at zero Fireworks tokens.",
+        "19/19 on judge-scale rehearsals across a 2x hardware speed envelope.",
+        "97.5-100% strict accuracy on held-out tasks, run after run.",
+        "Wall clock 231-380 seconds against a 600-second limit, at every speed.",
     ], y)
     return img
 
@@ -160,13 +162,13 @@ def s8():
 @slide
 def s9():
     img, d = new_slide()
-    y = title_block(d, "Gemma via Fireworks", "The escalation brain, not a cameo")
+    y = title_block(d, "Resilience, proven the hard way", "Four days of infrastructure storms")
     bullets(d, [
-        "Six of eight categories escalate to Gemma 4 31B through Fireworks.",
-        "Model IDs resolve from ALLOWED_MODELS at runtime. Nothing hardcoded.",
-        "Local Gemma was tested and ruled out honestly: the 4GB grading box",
-        "    cannot hold the smallest Gemma 4 plus an agent.",
-        "Gemma answers directly, with no hidden reasoning tokens to pay for.",
+        "Survived scoring outages, queue stalls, and slow grading hardware.",
+        "Connection retries, a half-open circuit breaker, and voted local fallback",
+        "    mean a failed remote call never returns a blank answer.",
+        "Gemma-ready: the probe prefers Gemma when the environment serves it;",
+        "    the scoring proxy never exposed a deployment, verified empirically.",
     ], y)
     return img
 
@@ -174,10 +176,11 @@ def s9():
 @slide
 def s10():
     img, d = new_slide()
-    y = title_block(d, "", "Built solo, in four days, in public")
+    y = title_block(d, "", "Built solo, in five days, in public")
     bullets(d, [
-        "AMD GPU pod + GCP for development. llama.cpp + Qwen3 + Gemma + Fireworks.",
-        "Reproducible: harness, tuning tools, and ladder ship in the repo.",
+        "AMD GPU pod + GCP for development. llama.cpp + Qwen3 + Fireworks.",
+        "Reproducible: harness, probe, tuning tools, and rehearsal protocol",
+        "    all ship in the repo.",
         "github.com/DavidOrtsac/frugal-router  |  MIT license",
     ], y)
     d.text((120, 900), "TranscendiantRouter  |  Team Transcendiant", font=font(32), fill=DIM)
