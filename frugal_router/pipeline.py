@@ -13,6 +13,7 @@ ever failing to finish.
 import json
 import os
 import sys
+import threading
 import time
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
@@ -492,16 +493,27 @@ def write_results(path: str, results: list) -> None:
 def write_payload(path: str, payload: list) -> None:
     """Atomic write: a container killed at the 600s limit must never leave a
     truncated or missing results.json — a partial file still scores, an
-    absent one is a total loss (OUTPUT_MISSING)."""
+    absent one is a total loss (OUTPUT_MISSING).
+
+    The temp file is UNIQUE per writer: a shared "<path>.tmp" lets two
+    concurrent writers interleave into the same inode and produce invalid
+    JSON (INVALID_RESULTS_SCHEMA on the judge)."""
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
-    tmp = f"{path}.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def write_placeholder(path: str, tasks: list) -> None:
@@ -521,15 +533,18 @@ class ResultCheckpointer:
         self._lock = Lock()
 
     def record(self, result: TaskResult) -> None:
+        # The write happens INSIDE the lock: releasing it first let a slower
+        # thread's older snapshot land after a newer one, silently reverting
+        # a completed answer to "".
         with self._lock:
             self._answers[result.task_id] = result.answer or ""
             payload = [{"task_id": tid, "answer": self._answers[tid]}
                        for tid in self._order]
-        try:
-            write_payload(self._path, payload)
-        except Exception as exc:  # never let checkpointing sink a task
-            print(f"[frugal-router] checkpoint write failed: {exc}",
-                  file=sys.stderr)
+            try:
+                write_payload(self._path, payload)
+            except Exception as exc:  # never let checkpointing sink a task
+                print(f"[frugal-router] checkpoint write failed: {exc}",
+                      file=sys.stderr)
 
 
 def report(results: list) -> dict:

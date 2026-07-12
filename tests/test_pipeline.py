@@ -282,3 +282,32 @@ def test_sampling_plan_never_increases_k_under_pressure():
     k_init, k_max = _sampling_plan(config, started=time.monotonic(),
                                    done=0, total=10, degrade_level=level)
     assert k_init <= 1 and k_max <= 1
+
+
+def test_checkpointer_is_thread_safe_under_concurrency(tmp_path):
+    """Sol's race: concurrent writers sharing one temp file produced invalid
+    JSON, and lock-released-before-write let stale snapshots revert answers."""
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    from frugal_router.pipeline import ResultCheckpointer, write_placeholder
+    from frugal_router.schemas import Route, TaskResult
+
+    out = tmp_path / "results.json"
+    tasks = [Task(f"t{i}", f"p{i}") for i in range(24)]
+    write_placeholder(str(out), tasks)
+    cp = ResultCheckpointer(str(out), tasks)
+
+    def _write(i):
+        cp.record(TaskResult(task_id=f"t{i}", answer=f"answer-{i}",
+                             category=Category.FACTUAL, route=Route.LOCAL,
+                             model="m", remote_tokens=0, reason="r"))
+        # every intermediate file must stay valid JSON
+        _json.loads(out.read_text())
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(_write, range(24)))
+
+    payload = {r["task_id"]: r["answer"] for r in _json.loads(out.read_text())}
+    assert payload == {f"t{i}": f"answer-{i}" for i in range(24)}
+    # no temp files left behind
+    assert not list(tmp_path.glob("*.tmp"))
