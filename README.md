@@ -3,18 +3,22 @@
 Token-efficient routing agent for the **AMD Developer Hackathon: ACT II, Track 1**.
 Team **Transcendiant**. Built solo by David Alfonso M. Castro.
 
-TranscendiantRouter combines a baked local model with a remote expert ladder:
-qualify safely first, then move down toward fewer Fireworks tokens only after
-the current rung has passed the hidden accuracy gate.
+**Frozen submission artifact (deadline Jul 13, 2026):**
+`ghcr.io/davidortsac/frugal-router:a4` —
+OCI index digest `sha256:6927f90beab96ac8e50f2ecd03c4a0d6ef347075fe066e813b0bd40415eb0bf6`.
+
+TranscendiantRouter answers most tasks with a free local model that must
+PROVE each answer before it ships, escalates only unproven answers to a
+remote expert, and adapts its own spending to the speed of the machine it
+wakes up on.
 
 ## Why this design
 
 Track 1 scoring has two stages: an accuracy gate, then ranking by fewest
 Fireworks tokens among the submissions that pass. Local tokens count as zero.
-The cheapest reliable way to catch a local model's mistakes is the local model
-itself: sample the same task several times and measure agreement. Agreement
-predicts correctness far better than a model's self-reported confidence, and
-under these rules the measurement is free.
+So the router routes by measured weakness: a strong local model answers for
+free wherever it can demonstrate correctness, and the remote expert is paid
+for exactly the categories and answers where it cannot.
 
 ## How it works
 
@@ -22,32 +26,44 @@ under these rules the measurement is free.
 /input/tasks.json
       |
 1. classify     rule-based, zero tokens: 8 task categories
-2. vote         Qwen3-1.7B (llama.cpp, weights baked into the image)
-                answers each task 3-5 times; agreement is measured
-3. decide       agreement >= per-category tuned threshold -> ship the
-                free majority answer (0 scored tokens)
-4. escalate     otherwise, that single task goes through the Fireworks
-                proxy: Kimi by default, resolved from ALLOWED_MODELS
+2. answer       Qwen3-4B-Instruct-2507 Q4_K_M (llama.cpp, weights baked in)
+                answers locally on 2 CPU cores
+3. prove        math/logic need an explicit final answer; code must parse
+                (compile-check, never executed); other categories vote by
+                self-consistency
+4. escalate     logical reasoning and any unproven answer go through the
+                Fireworks proxy: kimi-k2p7-code, resolved from ALLOWED_MODELS
       |
-/output/results.json
+/output/results.json   (placeholder at t=0; atomically checkpointed
+                        after every task — a hard kill still leaves a
+                        valid, scoreable file)
 ```
 
 ## Engineered for the grading environment
 
-- **Image**: ~3GB compressed (limit 10GB), model weights baked in, no
+- **Image**: ~3.5GB compressed (limit 10GB), model weights baked in, no
   downloads at start, boots in seconds (limit 60s).
-- **Hardware fit**: sampling counts, per-category token caps, and thread
-  settings sized for 4GB RAM and 2 vCPUs.
-- **Time**: a ratcheting time guard sheds sampling before the 10-minute limit
-  is at risk. The current safe rung is sized from replica grading runs.
-- **Robustness**: a failed remote call falls back to a local answer; a task
-  can never return blank; model IDs resolve from `ALLOWED_MODELS` at runtime,
-  so off-list calls are impossible by construction.
-- **Judge proxy hardening**: Fireworks calls use explicit timeouts, one quick
-  retry for proxy 429/5xx responses, capped remote concurrency, and a tighter
-  code-token budget so slow calls fail fast enough for local fallback.
+- **Self-healing probe**: at boot, sweeps base-URL variants x model-ID forms
+  x transports x auth shapes and pins the first combination that answers.
+  Nothing about the judge proxy is assumed; off-list calls are impossible
+  by construction.
+- **Time-fit preemption**: a local generation that cannot finish inside the
+  remaining time budget (450s internal, vs the 600s limit) never starts —
+  it escalates instead. Timeouts are engineered out, not hoped away.
+- **Adaptive cost**: measured on a clone of the grading box across a 2x
+  speed envelope (19-task judge-scale rehearsals): 19/19 accuracy in every
+  cell, walls 231-380s, tokens 331 (full speed) to ~3,034 (heavily degraded).
+- **OOM-tuned local server**: llama.cpp runs with `--cache-ram 0
+  --ctx-checkpoints 0 --no-cache-prompt -np 1` — the b9910 defaults
+  (8 GiB host prompt cache) OOM-kill the server inside a 4GB container.
+- **Robustness**: connection-class errors retry (3 attempts), a half-open
+  circuit breaker protects the clock, and a failed remote call falls back
+  to a voted local answer; a task can never return blank.
 - **Harness contract**: reads `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, and
   `ALLOWED_MODELS` from the environment, exactly as injected at evaluation.
+  On the organizers' published validation tasks (T01-T05): 5/5 at zero
+  Fireworks tokens.
+
 
 ## Measured results
 
@@ -87,7 +103,7 @@ Build from source: `docker buildx build --platform linux/amd64 -t transcendiantr
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                                   # 33 tests
+pytest                                   # 97 tests
 python eval/build_devset.py              # assemble the 227-task benchmark
 python eval/run_eval.py --mock           # offline smoke run, no GPU or key
 python eval/run_eval.py --local-only --tasks eval/tasks/train_tasks.json --dump dump_local.json
