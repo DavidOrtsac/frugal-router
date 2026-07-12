@@ -358,12 +358,21 @@ def run_batch(config: Config, local: ChatClient, remote: ChatClient, tasks: list
             k_initial, k_max = _sampling_plan(config, started,
                                               done=done_count[0], total=len(tasks),
                                               degrade_level=degrade_level)
-        if (time.monotonic() - started > config.time_budget_seconds * 0.92
-                and remote is not None):
-            # Clock nearly gone: skip slow local generation, answer remotely
-            # in phase 2 — emergency tokens beat an unscored run.
-            return TaskPlan(category=classify(task).category,
-                            reason="time emergency")
+        category = classify(task).category
+        if remote is not None:
+            elapsed = time.monotonic() - started
+            remaining = config.time_budget_seconds - elapsed
+            # Preemptive escalation: a task whose LOCAL generation cannot
+            # fit in the remaining budget must not start locally at all.
+            # The old pickup-time-only valve let a code task picked at
+            # T-40s generate for 200s past the wall (the L1 timeout).
+            # 4 tok/s is the conservative slow-judge-box decode rate.
+            est_local_seconds = (config.local_max_tokens_by_category.get(
+                category, config.local_max_tokens) / 4.0) + 20.0
+            if remaining < est_local_seconds:
+                return TaskPlan(category=category,
+                                reason=f"time preempt ({remaining:.0f}s left, "
+                                       f"local needs ~{est_local_seconds:.0f}s)")
         plan_or_result = _guard(
             task, lambda: plan_task(config, local, task, k_initial, k_max),
             "local phase")
